@@ -1,0 +1,101 @@
+name: Publish packaged release
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/release.yml]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful main build run ID
+        required: true
+        default: '39773416975'
+        type: string
+      tag:
+        description: Version tag matching package.json in the build
+        required: true
+        default: v0.3.1
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || 'v0.3.1' }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release:')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id || '39773416975' }}
+      TAG: ${{ inputs.tag || 'v0.3.1' }}
+    steps:
+      - name: Verify source build and version
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh api "repos/$GH_REPO/actions/runs/$RUN_ID" > run.json
+          jq -e --arg repo "$GH_REPO" '.status == "completed" and .conclusion == "success" and .event == "push" and .head_branch == "main" and .head_repository.full_name == $repo and .path == ".github/workflows/build.yml"' run.json
+          source_sha=$(jq -r .head_sha run.json)
+          package_version=$(gh api "repos/$GH_REPO/contents/package.json?ref=$source_sha" --jq .content | base64 --decode | jq -r .version)
+          test "$TAG" = "v$package_version"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Download all three verified platform artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$RUN_ID" --name windcloud-win-x64 --dir artifacts/windows
+          gh run download "$RUN_ID" --name windcloud-mac-arm64 --dir artifacts/mac-arm64
+          gh run download "$RUN_ID" --name windcloud-mac-x64 --dir artifacts/mac-x64
+      - name: Validate and checksum installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, os, pathlib, shutil, zipfile
+          root = pathlib.Path('artifacts')
+          target = pathlib.Path('assets')
+          target.mkdir()
+          expected = {'windows': {'.exe'}, 'mac-arm64': {'.dmg', '.zip'}, 'mac-x64': {'.dmg', '.zip'}}
+          for platform, extensions in expected.items():
+              files = list((root / platform).iterdir())
+              assert len(files) == len(extensions), (platform, files)
+              assert {p.suffix for p in files} == extensions, platform
+              for p in files:
+                  assert p.is_file() and not p.is_symlink() and p.stat().st_size > 0, p
+                  assert os.environ['TAG'][1:] in p.name, p
+                  assert not (target / p.name).exists(), p
+                  if p.suffix == '.zip':
+                      with zipfile.ZipFile(p) as z:
+                          assert z.testzip() is None, p
+                  shutil.copy2(p, target / p.name)
+          with (target / 'SHA256SUMS.txt').open('w') as checksums:
+              for p in sorted(target.iterdir()):
+                  if p.name != 'SHA256SUMS.txt':
+                      checksums.write(f'{hashlib.file_digest(p.open("rb"), "sha256").hexdigest()}  {p.name}\n')
+          PY
+      - name: Publish complete preview release
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          風雲再起桌面客戶端預覽版。
+
+          - Windows x64：下載 .exe 安裝檔。
+          - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
+          - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
+          - 支援 WSS、zMUD 風格 Alias／Trigger、#CAP 擷取分頁、自訂 ANSI 色彩及中文字圖對齊；換行後恢復預設色。
+
+          三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此為尚未簽章／公證的預覽版。
+          NOTES
+          printf '\n來源建置：https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" >> notes.md
+          gh release create "$TAG" --target "$SOURCE_SHA" --title "風雲再起 $TAG" --notes-file notes.md --draft --prerelease assets/*
+          gh release edit "$TAG" --draft=false
