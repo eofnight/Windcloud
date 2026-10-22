@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+  <title>風雲再起</title>
+  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css"><link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><h1>風雲再起</h1><span class="credit">create by Eofnight</span></div>
+    <div class="connection-state"><i id="indicator"></i><span id="connection-state">尚未連線</span></div>
+    <details id="settings-menu"><summary>設定</summary><div class="menu-content">
+      <label class="check"><input id="show-connection-info" type="checkbox"> 顯示狀態列</label>
+      <button id="open-appearance">色彩與顯示</button><button id="open-connection">連線設定</button>
+    </div></details>
+  </header>
+  <section class="toolbar" aria-label="操作選單">
+    <button id="connect" class="primary">連線</button><button id="disconnect" disabled>斷線</button>
+    <div class="toolbar-divider"></div>
+    <nav class="panel-buttons" aria-label="規則面板">
+      <button data-panel="aliases" aria-expanded="false" aria-controls="rules-panel">Alias</button>
+      <button data-panel="triggers" aria-expanded="false" aria-controls="rules-panel">觸發</button>
+      <button data-panel="variables" aria-expanded="false" aria-controls="rules-panel">變數</button>
+      <button data-panel="captures" aria-expanded="false" aria-controls="rules-panel">擷取</button>
+    </nav>
+    <div class="spacer"></div><button id="pause">暫停觸發器</button><button id="save-log">匯出紀錄</button><button id="clear">清除畫面</button>
+  </section>
+  <main>
+    <section class="console">
+      <nav id="output-tabs" role="tablist" aria-label="終端分頁"><button id="game-tab" role="tab" aria-selected="true" class="active">遊戲</button></nav>
+      <span id="view-title" class="sr-only">遊戲終端</span>
+      <div id="terminal-frame"><div id="terminal" role="tabpanel" aria-label="遊戲終端"></div></div>
+      <div id="capture-views" hidden></div>
+      <div id="welcome"><h2>準備重返風雲。</h2><p>按「連線」進入遊戲。</p></div>
+      <form id="command-form">
+        <div class="input-row"><span class="prompt">›</span><input id="command" autocomplete="off" spellcheck="false" placeholder="輸入指令…" aria-label="遊戲指令"><label class="check secret-label"><input type="checkbox" id="secret"> 密碼</label><button class="primary" type="submit">送出 ↵</button></div>
+      </form>
+    </section>
+    <aside id="rules-panel" aria-label="規則管理" hidden>
+      <div class="panel-heading"><span>規則管理</span><button id="close-panel" aria-label="隱藏規則面板">✕</button></div>
+      <nav class="tabs"><button data-tab="aliases" class="active">Alias <span id="alias-count">0</span></button><button data-tab="triggers">觸發 <span id="trigger-count">0</span></button><button data-tab="variables">變數</button><button data-tab="captures">擷取 <span id="capture-count">0</span></button></nav>
+      <div id="rules"></div><button id="add-rule" class="add">＋ 新增 Alias</button>
+      <div class="aside-footer"><button id="import">匯入設定</button><button id="export">匯出設定</button></div>
+    </aside>
+  </main>
+  <footer id="status-bar" hidden><span id="status" role="status">就緒。</span></footer>
+  <dialog id="editor"><form id="rule-form"><div class="dialog-heading"><h2 id="editor-title">新增規則</h2><button type="button" id="cancel" aria-label="關閉">✕</button></div><label id="key-label">名稱<input id="rule-key" required spellcheck="false"></label><label id="body-label">執行內容<textarea id="rule-body" rows="5" required spellcheck="false"></textarea></label><label id="group-label">群組（選填）<input id="rule-group" spellcheck="false"></label><div id="trigger-options"><label>觸發時機<select id="rule-mode"><option value="line">收到完整文字行</option><option value="prompt">提示文字（無換行）</option></select></label><label class="check"><input id="rule-case" type="checkbox"> 區分英文大小寫</label></div><p id="editor-hint"></p><p id="editor-error" role="alert"></p><div class="dialog-actions"><button class="primary" type="submit">儲存規則</button></div></form></dialog>
+  <dialog id="appearance"><form id="appearance-form">
+    <div class="dialog-heading"><h2>色彩與顯示</h2><button type="button" id="cancel-appearance" aria-label="取消色彩設定">✕</button></div>
+    <div class="display-options"><label>字體大小<input id="font-size" type="number" min="11" max="24" required></label><label>固定文字欄數<input id="terminal-columns" type="number" min="80" max="240" step="1" required></label></div>
+    <p class="hint">固定欄數可避免開關面板或調整視窗時重新折行；寬度不足時可橫向捲動。</p>
+    <label class="check"><input id="bold-as-bright" type="checkbox"> ANSI 粗體使用亮色</label>
+    <div class="preset-buttons"><button id="classic-colors" type="button">經典 ANSI</button><button id="soft-colors" type="button">柔和色盤</button></div>
+    <div id="color-fields"></div><p id="appearance-error" role="alert"></p>
+    <div class="dialog-actions"><button class="primary" type="submit">儲存設定</button></div>
+  </form></dialog>
+  <dialog id="connection-settings"><form id="connection-form">
+    <div class="dialog-heading"><h2>連線設定</h2><button id="close-connection" type="button" aria-label="關閉連線設定">✕</button></div>
+    <label>連線方式<select id="transport"><option value="websocket">網頁 WSS／443（預設）</option><option value="telnet">Telnet 直連</option><option value="auto">自動切換</option></select></label>
+    <div id="direct-settings"><label>主機<input id="host" value="125.228.186.144" spellcheck="false"></label><label>Port<input id="port" type="number" min="1" max="65535" value="8000"></label><label>編碼<select id="encoding"><option value="big5">Big5 繁體中文</option><option value="utf8">UTF-8</option></select></label></div>
+    <p id="gateway-label" class="hint">風雲再起網頁入口 · 加密連線 · UTF-8</p>
+    <div class="dialog-actions"><button class="primary" type="submit">完成</button></div>
+  </form></dialog>
+  <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script><script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script><script type="module" src="renderer.js"></script>
+</body></html>

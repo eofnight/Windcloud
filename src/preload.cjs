@@ -1,0 +1,17 @@
+const { contextBridge, ipcRenderer } = require('electron');
+const calls = new Set(['init','connect','disconnect','execute','rules','pause','resize','preferences','export','import','log']);
+const events = new Set(['notice','connection','output','echo','capture','command-echo','connection-info']);
+contextBridge.exposeInMainWorld('mud', {
+  call: async (name, data) => {
+    if (!calls.has(name)) throw Error('無效操作');
+    const result = await ipcRenderer.invoke(name, data);
+    if (!result.ok) throw Error(result.error);
+    return result.value;
+  },
+  on: (name, listener) => {
+    if (!events.has(name)) throw Error('無效事件');
+    const handler = (_, data) => listener(data);
+    ipcRenderer.on(name, handler);
+    return () => ipcRenderer.removeListener(name, handler);
+  }
+});
