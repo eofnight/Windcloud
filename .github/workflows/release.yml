@@ -70,11 +70,12 @@ jobs:
               for p in files:
                   assert p.is_file() and not p.is_symlink() and p.stat().st_size > 0, p
                   assert os.environ['TAG'][1:] in p.name, p
-                  assert not (target / p.name).exists(), p
+                  asset_name = p.name.replace(' ', '.')
+                  assert not (target / asset_name).exists(), p
                   if p.suffix == '.zip':
                       with zipfile.ZipFile(p) as z:
                           assert z.testzip() is None, p
-                  shutil.copy2(p, target / p.name)
+                  shutil.copy2(p, target / asset_name)
           with (target / 'SHA256SUMS.txt').open('w') as checksums:
               for p in sorted(target.iterdir()):
                   if p.name != 'SHA256SUMS.txt':
@@ -97,5 +98,25 @@ jobs:
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此為尚未簽章／公證的預覽版。
           NOTES
           printf '\n來源建置：https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" >> notes.md
-          gh release create "$TAG" --target "$SOURCE_SHA" --title "風雲再起 $TAG" --notes-file notes.md --draft --prerelease assets/*
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A retry can repair checksums without replacing any installer.
+            remote_sha=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq .object.sha)
+            test "$remote_sha" = "$SOURCE_SHA"
+            gh api "repos/$GH_REPO/releases/tags/$TAG" > existing-release.json
+            python3 - <<'PYRELEASE'
+          import hashlib, json, pathlib
+          remote = json.loads(pathlib.Path('existing-release.json').read_text())
+          assets = {a['name']: a for a in remote['assets']}
+          local = [p for p in pathlib.Path('assets').iterdir() if p.name != 'SHA256SUMS.txt']
+          assert set(assets) - {'SHA256SUMS.txt'} == {p.name for p in local}
+          for p in local:
+              assert assets[p.name]['size'] == p.stat().st_size
+              digest = assets[p.name].get('digest')
+              if digest:
+                  assert digest == 'sha256:' + hashlib.file_digest(p.open('rb'), 'sha256').hexdigest()
+          PYRELEASE
+            gh release upload "$TAG" assets/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" --target "$SOURCE_SHA" --title "風雲再起 $TAG" --notes-file notes.md --draft --prerelease assets/*
+          fi
           gh release edit "$TAG" --draft=false
