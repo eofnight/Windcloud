@@ -4,6 +4,20 @@
 
 這是獨立開發的預覽版，不是 Zugg Software 的官方產品；不包含 zMUD 程式碼、圖示或遊戲伺服器程式。
 
+## 下載與安裝
+
+目前版本：**0.3.1（預覽版）**。三個平台均已通過 GitHub Actions 自動測試及打包。
+
+| 作業系統 | 下載 | 安裝檔 |
+| --- | --- | --- |
+| Windows x64 | [下載 Windows 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12424045543) | `.exe` |
+| macOS Apple Silicon（M 系列） | [下載 Apple Silicon 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12422829253) | `.dmg`／`.zip` |
+| macOS Intel | [下載 Intel 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12423387454) | `.dmg`／`.zip` |
+
+下載 Actions 產物需登入 GitHub；解壓縮下載的產物後，Windows 執行 `.exe` 安裝，macOS 開啟 `.dmg` 並將 App 拖至「應用程式」資料夾。使用安裝版不需要安裝 Node.js 或 pnpm。
+
+目前安裝檔放在 Actions Artifacts，尚未發布至 Releases。Artifacts 有保存期限；若連結失效，請前往 [Actions](https://github.com/eofnight/Windcloud/actions) 選擇最近成功的「Test and build desktop clients」，於頁面下方 Artifacts 下載對應平台。
+
 ## 開發與執行
 
 需要 Node.js 24 與 pnpm 11.25.0。安裝 pnpm 後：
