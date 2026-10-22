@@ -8,17 +8,17 @@ on:
       run_id:
         description: Successful main build run ID
         required: true
-        default: '39782905578'
+        default: '39786449615'
         type: string
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.3
+        default: v0.3.4
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.3' }}
+  group: release-${{ inputs.tag || 'v0.3.4' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -30,8 +30,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RUN_ID: ${{ inputs.run_id || '39782905578' }}
-      TAG: ${{ inputs.tag || 'v0.3.3' }}
+      RUN_ID: ${{ inputs.run_id || '39786449615' }}
+      TAG: ${{ inputs.tag || 'v0.3.4' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -93,6 +93,9 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
+          - 修正 macOS App 與 Electron 輔助程式的簽章；採用免費 ad-hoc 本機簽章並保留 Hardened Runtime。
+          - 加入封裝前及 ZIP 解壓後的嚴格簽章驗證；舊版無效簽章會直接讓建置失敗。
+          - macOS 首次開啟可能仍需「系統設定 → 隱私權與安全性 → 強制打開」，只授權此 App。
           - 觸發器實際送出的指令會逐條回顯，包含 Alias 展開與延遲指令；密碼提示期間不回顯。
           - 支援 #TRI；#TR+／#TRI+／#TRIGGER+ 與對應 - 寫法可控制觸發群組。
           - Esc 清空指令列，Page Up／Page Down 捲動遊戲與擷取分頁的歷史訊息。
@@ -101,7 +104,7 @@ jobs:
           - 等待期間仍可手動輸入；斷線、暫停觸發器或重新載入規則時會取消等待。
           - 支援 WSS、zMUD 風格 Alias／Trigger、#CAP 擷取分頁、自訂 ANSI 色彩及中文字圖對齊；換行後恢復預設色。
 
-          三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此為尚未簽章／公證的預覽版。
+          三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。
           NOTES
           printf '\n來源建置：https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" >> notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
