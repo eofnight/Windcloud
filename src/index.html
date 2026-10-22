@@ -12,9 +12,10 @@
     <div class="connection-state"><i id="indicator"></i><span id="connection-state">尚未連線</span></div>
     <details id="settings-menu"><summary>設定</summary><div class="menu-content">
       <label class="check"><input id="show-connection-info" type="checkbox"> 顯示狀態列</label>
-      <button id="open-appearance">色彩與顯示</button><button id="open-connection">連線設定</button>
+      <button id="check-updates">檢查更新</button><button id="open-appearance">色彩與顯示</button><button id="open-connection">連線設定</button>
     </div></details>
   </header>
+  <aside id="update-notice" role="status" hidden><span id="update-message"></span><button id="download-update">前往下載</button><button id="dismiss-update" aria-label="關閉更新提醒">✕</button></aside>
   <section class="toolbar" aria-label="操作選單">
     <button id="connect" class="primary">連線</button><button id="disconnect" disabled>斷線</button>
     <div class="toolbar-divider"></div>

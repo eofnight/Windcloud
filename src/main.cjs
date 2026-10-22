@@ -1,12 +1,23 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const iconv = require('iconv-lite');
 // Opt-in isolated profile for local verification; does not touch a running player's settings.
 if (process.env.WINDCLOUD_TEST_PROFILE) app.setPath('userData', path.resolve(process.env.WINDCLOUD_TEST_PROFILE));
-let win, socket, decoder, telnet, lines, promptTimer, saveTimer;
-let engine, Telnet, LineStream, GameConnection, executeInput, normalizePreferences, migrateSettings, settings, passwordNext = false;
-let connecting = false;
+let win, socket, decoder, telnet, lines, promptTimer, saveTimer, updateTimer;
+let engine, Telnet, LineStream, GameConnection, executeInput, echoTriggeredCommand, normalizePreferences, migrateSettings, settings, passwordNext = false;
+let connecting = false, checkForUpdate, updateInfo = null, updateCheck = null, notifiedVersion = '';
+async function checkUpdates() {
+  if (updateCheck) return updateCheck;
+  updateCheck = checkForUpdate(app.getVersion()).then(info => {
+    updateInfo = info;
+    if (info && info.version !== notifiedVersion) {
+      notifiedVersion = info.version; transmit('update-available', info);
+    }
+    return info;
+  }).finally(() => { updateCheck = null; });
+  return updateCheck;
+}
 const transmit = (kind, data) => { if (win && !win.isDestroyed()) win.webContents.send(kind, data); };
 const notice = text => transmit('notice', String(text));
 const connectionInfo = text => transmit('connection-info', String(text));
@@ -78,10 +89,11 @@ function connect() {
 app.whenReady().then(async () => {
   const { Engine: EngineClass } = await import('./engine.js');
   ({ Telnet, LineStream } = await import('./telnet.js'));
-  ({ executeInput } = await import('./input.js'));
+  ({ executeInput, echoTriggeredCommand } = await import('./input.js'));
+  ({ checkForUpdate } = await import('./updates.js'));
   ({ GameConnection } = await import('./connection.js'));
   ({ normalizePreferences, migrateSettings } = await import('./preferences.js'));
-  engine = new EngineClass({ send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave }); settings = defaults();
+  engine = new EngineClass({ send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave, echo: text => echoTriggeredCommand({ text, passwordPrompt:passwordNext, echo: text => transmit('trigger-echo',text) }) }); settings = defaults();
   try {
     const loaded = JSON.parse(await fs.readFile(configPath(), 'utf8'));
     validateSettings(loaded); const migrated = migrateSettings({ ...defaults(), ...loaded }); engine.restore(migrated.engine); settings = migrated;
@@ -97,6 +109,11 @@ app.whenReady().then(async () => {
     try { return { ok: true, value: await fn(...args) }; } catch(e) { return { ok: false, error: e.message }; }
   });
   handle('init', () => config());
+  handle('check-updates', () => checkUpdates());
+  handle('open-update', async () => {
+    if (!updateInfo) throw Error('目前沒有可下載的更新');
+    await shell.openExternal(updateInfo.url);
+  });
   handle('connect', data => {
     const next = { ...settings, host: data.host, port: data.port, encoding: data.encoding, transport: data.transport || 'websocket' };
     validateSettings(next); settings = next; scheduleSave(); connect();
@@ -133,5 +150,8 @@ app.whenReady().then(async () => {
     if (!result.canceled) await fs.writeFile(result.filePath,text);
   });
   await win.loadFile(path.join(__dirname, 'index.html'));
+  checkUpdates().catch(() => {});
+  updateTimer = setInterval(() => checkUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
+  updateTimer.unref();
 });
-app.on('window-all-closed', () => { closeConnection(); clearTimeout(saveTimer); save().finally(() => app.quit()); });
+app.on('window-all-closed', () => { closeConnection(); clearTimeout(saveTimer); clearInterval(updateTimer); save().finally(() => app.quit()); });

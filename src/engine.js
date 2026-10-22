@@ -2,11 +2,11 @@ import { argumentsOf, splitCommands, expand } from './parser.js';
 import { compilePattern } from './pattern.js';
 import { evaluate } from './expression.js';
 export class Engine {
-  constructor({ send = () => {}, notice = () => {}, capture = () => {}, changed = () => {} } = {}) {
-    this.send = send; this.notice = notice; this.capture = capture; this.changed = changed;
+  constructor({ send = () => {}, notice = () => {}, capture = () => {}, changed = () => {}, echo = () => {} } = {}) {
+    this.send = send; this.notice = notice; this.capture = capture; this.changed = changed; this.echo = echo;
     this.pendingWait = null;
     this.aliases = []; this.triggers = []; this.captures = []; this.variables = Object.create(null);
-    this.groups = Object.create(null); this.paused = false;
+    this.groups = Object.create(null); this.triggerGroups = Object.create(null); this.paused = false;
   }
   get paused() { return this._paused; }
   set paused(value) { this._paused = !!value; if (this._paused) this.cancelPending(); }
@@ -15,13 +15,13 @@ export class Engine {
     this.pendingWait = null;
     if (pending) { clearTimeout(pending.timer); pending.iterator.return(); }
   }
-  advance(iterator, deferred = false) {
+  advance(iterator, deferred = false, context) {
     try {
       const next = iterator.next();
       if (!next.done) {
         // Legacy zMUD has a single WAIT queue. A new WAIT replaces the old one.
         this.cancelPending();
-        const pending = { iterator, timer: null, milliseconds: next.value };
+        const pending = { iterator, timer: null, milliseconds: next.value, context };
         this.pendingWait = pending;
         if (next.value !== null) pending.timer = setTimeout(() => this.resume(pending), next.value);
       }
@@ -33,10 +33,10 @@ export class Engine {
   resume(pending = this.pendingWait) {
     if (!pending || pending !== this.pendingWait) return;
     clearTimeout(pending.timer); this.pendingWait = null;
-    this.advance(pending.iterator, true);
+    this.advance(pending.iterator, true, pending.context);
   }
   snapshot() {
-    return structuredClone({ aliases: this.aliases, triggers: this.triggers, captures: this.captures, variables: this.variables, groups: this.groups });
+    return structuredClone({ aliases: this.aliases, triggers: this.triggers, captures: this.captures, variables: this.variables, groups: this.groups, triggerGroups: this.triggerGroups });
   }
   restore(state) {
     if (!state || typeof state !== 'object') throw Error('無效的設定');
@@ -52,12 +52,13 @@ export class Engine {
       return { [key]: rule[key], body: rule.body, group: rule.group || '', enabled: rule.enabled !== false,
         ...(trigger ? { mode: rule.mode === 'prompt' ? 'prompt' : 'line', caseSensitive: !!rule.caseSensitive } : {}) };
     });
-    const vars = Object.create(null), groups = Object.create(null);
+    const vars = Object.create(null), groups = Object.create(null), triggerGroups = Object.create(null);
     for (const [k, v] of Object.entries(state.variables ?? {})) {
       if (!/^\w+$/.test(k) || typeof v !== 'string') throw Error('變數格式錯誤');
       vars[k] = v;
     }
     for (const [k,v] of Object.entries(state.groups ?? {})) groups[k] = !!v;
+    for (const [k,v] of Object.entries(state.triggerGroups ?? {})) triggerGroups[k] = !!v;
     const a = rules(aliases, false), t = rules(triggers, true);
     const c = captures.map(rule => {
       validateCapture(rule);
@@ -65,18 +66,20 @@ export class Engine {
     });
     if (new Set(c.map(rule => rule.target)).size > 64) throw Error('最多可設定 64 個擷取分頁');
     this.cancelPending();
-    this.aliases = a; this.triggers = t; this.captures = c; this.variables = vars; this.groups = groups;
+    this.aliases = a; this.triggers = t; this.captures = c; this.variables = vars; this.groups = groups; this.triggerGroups = triggerGroups;
   }
-  active(rule) { return rule.enabled !== false && this.groups[rule.group] !== false; }
+  active(rule, trigger = false) { return rule.enabled !== false && this.groups[rule.group] !== false && (!trigger || this.triggerGroups[rule.group] !== false); }
+  dispatch(text, context) { if (context.trigger) this.echo(text); this.send(text); }
   execute(source) {
-    this.advance(this.run(source, [], false, 0, { steps: 0 }));
+    const context = { budget: { steps: 0 }, trigger: false };
+    this.advance(this.run(source, [], false, 0, context), false, context);
   }
   *run(source, params, script, depth, context) {
     if (depth > 24) throw Error('Alias 遞迴過深，已停止');
     for (let raw of splitCommands(source)) {
       // Accept both #CAP {text} tab and the requested #cap【系統】連線精靈： system.
       raw = raw.replace(/^#(un)?cap(?=[^A-Za-z0-9_\s-])/i, '#$1cap ');
-      if (++context.steps > 200) throw Error('單次執行超過 200 個指令，已停止');
+      if (++context.budget.steps > 200) throw Error('單次執行超過 200 個指令，已停止');
       const tokens = argumentsOf(raw);
       if (!tokens.length) continue;
       if (raw.startsWith('#')) {
@@ -97,7 +100,7 @@ export class Engine {
         if (remaining) body += ' ' + remaining.replaceAll(';', '~;');
         yield* this.run(body, values, true, depth + 1, context);
       } else {
-        this.send(text.replace(/~(.)/gs, '$1'));
+        this.dispatch(text.replace(/~(.)/gs, '$1'), context);
       }
     }
   }
@@ -133,7 +136,7 @@ export class Engine {
       splitCommands(alias.body);
       const index = this.aliases.findIndex(a => a.name.toLowerCase() === alias.name.toLowerCase());
       if (index < 0) this.aliases.push(alias); else this.aliases[index] = alias;
-    } else if (['#TRIGGER', '#TR', '#ACTION', '#AC'].includes(name)) {
+    } else if (['#TRIGGER', '#TRI', '#TR', '#ACTION', '#AC'].includes(name)) {
       requireArgs(2);
       const trigger = { pattern: body(0), body: body(1), group: value(2), enabled: true, mode: 'line', caseSensitive: false };
       compilePattern(trigger.pattern, this.variables); splitCommands(trigger.body);
@@ -145,8 +148,15 @@ export class Engine {
       if (!/^\w+$/.test(key)) throw Error('變數名稱只能使用英文、數字與底線');
       const rawValue = value(1);
       this.variables[key] = !args[1].quoted && rawValue.startsWith('[') && rawValue.endsWith(']') ? String(evaluate(rawValue.slice(1,-1), this.variables, params)) : rawValue;
+    } else if (/^#(?:TR|TRI|TRIGGER)[+-]$/.test(name)) {
+      requireArgs(1);
+      if (args.length !== 1 || !value(0).trim()) throw Error('格式：#TR+ {群組} 或 #TR- {群組}');
+      const group = value(0);
+      this.triggerGroups[group] = name.endsWith('+');
+      if (name.endsWith('-') && this.pendingWait?.context?.trigger && this.pendingWait.context.group === group) this.cancelPending();
     } else if (name === '#T+' || name === '#T-') {
       requireArgs(1); this.groups[value(0)] = name === '#T+';
+      if (name === '#T-' && this.pendingWait?.context?.trigger && this.pendingWait.context.group === value(0)) this.cancelPending();
     } else if (name === '#SHOW' || name === '#SAY') {
       this.notice(args.map((_, i) => value(i)).join(' '));
     } else if (name === '#UNALIAS') {
@@ -156,7 +166,7 @@ export class Engine {
     } else if (name === '#UNVAR') {
       requireArgs(1); delete this.variables[value(0)];
     } else if (name === '#SEND') {
-      requireArgs(1); this.send(value(0));
+      requireArgs(1); this.dispatch(value(0), context);
     } else if (name === '#IF') {
       requireArgs(2);
       const result = evaluate(args[0].value, this.variables, params);
@@ -172,7 +182,7 @@ export class Engine {
   receive(line, mode = 'line') {
     if (this.paused) return;
     if (this.pendingWait?.milliseconds === null) this.resume();
-    const context = { steps: 0 };
+    const budget = { steps: 0 };
     if (mode === 'line') {
       const targets = new Set();
       for (const rule of this.captures) {
@@ -181,9 +191,12 @@ export class Engine {
       for (const target of targets) this.capture({ target, line });
     }
     for (const trigger of [...this.triggers]) {
-      if (!this.active(trigger) || (trigger.mode || 'line') !== mode) continue;
+      if (!this.active(trigger, true) || (trigger.mode || 'line') !== mode) continue;
       const result = compilePattern(trigger.pattern, this.variables, trigger.caseSensitive).exec(line.slice(0, 16384));
-      if (result) this.advance(this.run(trigger.body, result.slice(1), true, 0, context));
+      if (result) {
+        const context = { budget, trigger: true, group: trigger.group };
+        this.advance(this.run(trigger.body, result.slice(1), true, 0, context), false, context);
+      }
     }
   }
 }

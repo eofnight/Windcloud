@@ -17,3 +17,8 @@ export function prepareInput(input, secret) {
   if (secret) input.value = '';
   else input.select();
 }
+
+// Triggered login responses must never enter the renderer or its session log.
+export function echoTriggeredCommand({ text, passwordPrompt = false, echo }) {
+  if (!passwordPrompt) echo(text);
+}

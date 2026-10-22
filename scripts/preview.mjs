@@ -10,11 +10,13 @@ import {Engine} from '/src/engine.js';
 import {normalizePreferences} from '/src/preferences.js';
 const listeners=new Map();
 const emit=(name,data)=>(listeners.get(name)||[]).forEach(fn=>fn(data));
-const engine=new Engine({send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data)});
+const engine=new Engine({send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data),echo:text=>emit('trigger-echo',text)});
 const config=()=>({version:2,host:'windcloud.muds.me',port:443,encoding:'utf8',transport:'websocket',preferences,engine:engine.snapshot(),paused:engine.paused});
 let preferences=normalizePreferences();
 window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listeners.set(name,list);return()=>listeners.set(name,list.filter(x=>x!==fn));},async call(name,data){
  if(name==='init')return config();
+ if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.4',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.4'}:null;
+ if(name==='open-update')return;
  if(name==='resize')return;
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}
  if(name==='rules'){engine.restore(data);return config();}

@@ -1,3 +1,4 @@
+import { handleTerminalKey } from './keyboard.js';
 import { prepareInput } from './input.js';
 import { CaptureLog } from './capture-log.js';
 import { installMudUnicode } from './mud-unicode.js';
@@ -109,7 +110,7 @@ function render() {
     empty.append(heading,p,code); $('rules').append(empty);
   }
   list.forEach((rule,index) => {
-    const row=document.createElement('div'); row.className='rule' + (rule.enabled === false || config.engine.groups[rule.group] === false ? ' off':'');
+    const row=document.createElement('div'); row.className='rule' + (rule.enabled === false || (config.engine.groups[rule.group] === false || (tab === 'triggers' && config.engine.triggerGroups?.[rule.group] === false)) ? ' off':'');
     const top=document.createElement('div'); top.className='rule-top';
     if(tab!=='variables') {
       const enabled=document.createElement('input'); enabled.type='checkbox'; enabled.checked=rule.enabled!==false; enabled.setAttribute('aria-label','啟用規則');
@@ -118,7 +119,7 @@ function render() {
     const title=document.createElement('strong'); title.textContent=rule.pattern||rule.text||rule.name; top.append(title);
     const body=document.createElement('div'); body.className='rule-body'; body.textContent=tab==='captures'?'→ '+rule.target:rule.body;
     const actions=document.createElement('div'); actions.className='rule-actions';
-    const group=document.createElement('span'); group.textContent=rule.group ? `${rule.group}${config.engine.groups[rule.group]===false?' · 已停用':''}` : '未分組';
+    const group=document.createElement('span'); group.textContent=rule.group ? `${rule.group}${(config.engine.groups[rule.group]===false || (tab==='triggers' && config.engine.triggerGroups?.[rule.group]===false))?' · 已停用':''}` : '未分組';
     const edit=document.createElement('button'); edit.textContent='編輯'; edit.onclick=()=>openEditor(index);
     const remove=document.createElement('button'); remove.textContent='刪除'; remove.onclick=async()=>{
       const next=structuredClone(config.engine); if(tab==='variables') delete next.variables[rule.name]; else next[tab].splice(index,1); await saveRules(next);
@@ -180,6 +181,16 @@ $('command-form').onsubmit=async event=>{
     render();
   }catch(e){error(e);}
 };
+document.addEventListener('keydown', event => {
+  const handled = handleTerminalKey(event, {
+    input:$('command'), inTerminal:!!event.target?.closest?.('#terminal'), dialogOpen:!!document.querySelector('dialog[open]'),
+    scrollPage: direction => {
+      if (activeView === null) term.scrollPages(direction);
+      else { const pane=captureViews.get(activeView).pane; pane.scrollTop += direction * Math.max(1,pane.clientHeight * 0.9); }
+    }
+  });
+  if (handled && event.key === 'Escape') historyIndex=history.length;
+}, true);
 $('command').onkeydown=event=>{
   if(event.isComposing||secretMode())return;
   if(event.key==='ArrowUp'||event.key==='ArrowDown'){
@@ -189,11 +200,13 @@ $('command').onkeydown=event=>{
     if(alias){event.preventDefault();$('command').value=alias.body;}
   }
 };
-window.mud.on('command-echo', text => {
+function echoCommand(text, prefix = '› ') {
   $('welcome').hidden = true;
-  const echo = output.local('› ' + text, preferences.colors.command);
+  const echo = output.local(prefix + text, preferences.colors.command);
   term.write(echo); log = (log + echo).slice(-2_000_000);
-});
+}
+window.mud.on('command-echo', text => echoCommand(text));
+window.mud.on('trigger-echo', text => echoCommand(text, '觸發 › '));
 window.mud.on('capture', ({target, line}) => {
   const record = ensureCapture(target), active = activeView === target;
   const previousScroll = record.pane.scrollTop;
@@ -256,5 +269,24 @@ $('appearance-form').onsubmit = async event => {
     const next=normalizePreferences({...colorDraft,fontSize:Number($('font-size').value),columns:Number($('terminal-columns').value),boldAsBright:$('bold-as-bright').checked});
     config=await call('preferences',next); applyPreferences(config.preferences); $('appearance').close();
   } catch(e) { $('appearance-error').textContent=e.message; }
+};
+let dismissedUpdate = '';
+function showUpdate(info, force = false) {
+  if (!info || (!force && info.version === dismissedUpdate)) return;
+  $('update-message').textContent = `有新版本 ${info.version} 可用。`;
+  $('update-notice').hidden = false;
+  $('update-notice').dataset.version = info.version;
+}
+window.mud.on('update-available', info => showUpdate(info));
+$('dismiss-update').onclick = () => { dismissedUpdate=$('update-notice').dataset.version; $('update-notice').hidden=true; };
+$('download-update').onclick = () => call('open-update').catch(error);
+$('check-updates').onclick = async () => {
+  closeMenu(); $('check-updates').disabled=true;
+  try {
+    const info=await call('check-updates');
+    if (info) showUpdate(info,true);
+    else { $('update-notice').hidden=true; term.write(output.local('[系統] 目前已是最新版本。',preferences.colors.info)); }
+  } catch(e) { error(e); }
+  finally { $('check-updates').disabled=false; }
 };
 call('init').then(loadConfig).catch(error);
