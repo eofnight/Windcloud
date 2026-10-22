@@ -16,7 +16,17 @@
 
 Windows 執行 `.exe` 安裝；macOS 開啟 `.dmg` 並將 App 拖至「應用程式」資料夾，或解壓縮 `.zip` 取得 App。使用安裝版不需要安裝 Node.js 或 pnpm。
 
-此為尚未簽章／公證的預覽版。檔案核對碼：[SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.3/SHA256SUMS.txt)。其他版本請見 [Releases](https://github.com/eofnight/Windcloud/releases)。
+目前 0.3.3 及更早的 macOS 安裝檔有簽章驗證問題，暫不建議使用；修正版完成後會更新下載連結。此為尚未經 Apple 公證的預覽版。檔案核對碼：[SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.3/SHA256SUMS.txt)。其他版本請見 [Releases](https://github.com/eofnight/Windcloud/releases)。
+
+### macOS 首次開啟（本機簽章版本）
+
+修正版使用免費的 ad-hoc 本機簽章，包含 Hardened Runtime 與 App 資源驗證；它不等同 Apple Developer ID 或 Apple 公證，首次開啟仍可能需要由使用者授權。
+
+1. 從本專案 Releases 下載適合處理器的修正版，開啟 `.dmg`，將 App 拖至「應用程式」。
+2. 嘗試開啟 App；如 macOS 因未公證而阻擋，前往「系統設定 → 隱私權與安全性」，若出現「強制打開」，確認來源後針對這個 App 授權。
+3. 若仍顯示「已損毀」且沒有可授權入口，請先停止操作並回報版本與畫面；不要以關閉整台 Mac 的安全檢查來處理。
+
+只有新版提供本機簽章修正，舊版下載檔不會自動改變。可參考 [Apple 的開啟 App 說明](https://support.apple.com/zh-tw/102445)。
 
 ## 開發與執行
 

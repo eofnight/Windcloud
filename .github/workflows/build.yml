@@ -34,6 +34,21 @@ jobs:
       - run: pnpm exec electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify macOS archives and signatures
+        if: runner.os == 'macOS'
+        run: |
+          python3 - <<'PYVERIFY'
+          from pathlib import Path
+          import subprocess, tempfile
+          archives = list(Path('release').glob('*.zip'))
+          assert len(archives) == 1, archives
+          for archive in archives:
+              with tempfile.TemporaryDirectory(prefix='windcloud-signature-') as folder:
+                  subprocess.run(['ditto', '-xk', str(archive), folder], check=True)
+                  subprocess.run(['node', 'scripts/verify-mac-signature.cjs', str(Path(folder) / 'Windcloud Client.app')], check=True)
+          for image in Path('release').glob('*.dmg'):
+              subprocess.run(['hdiutil', 'verify', str(image)], check=True)
+          PYVERIFY
       - uses: actions/upload-artifact@v4
         with:
           name: windcloud-${{ matrix.platform }}-${{ matrix.arch }}
