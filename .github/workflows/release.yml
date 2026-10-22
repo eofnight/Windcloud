@@ -103,7 +103,9 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             # A retry can repair checksums without replacing any installer.
             remote_sha=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq .object.sha)
-            test "$remote_sha" = "$SOURCE_SHA"
+            gh api "repos/$GH_REPO/compare/$SOURCE_SHA...$remote_sha" > release-compare.json
+            jq -e '.status == "ahead" or .status == "identical"' release-compare.json
+            jq -e '[.files[] | select(.filename != ".github/workflows/release.yml")] | length == 0' release-compare.json
             gh api "repos/$GH_REPO/releases/tags/$TAG" > existing-release.json
             python3 - <<'PYRELEASE'
           import hashlib, json, pathlib
@@ -119,6 +121,12 @@ jobs:
           PYRELEASE
             gh release upload "$TAG" assets/SHA256SUMS.txt --clobber
           else
-            gh release create "$TAG" --target "$SOURCE_SHA" --title "風雲再起 $TAG" --notes-file notes.md --draft --prerelease assets/*
+            # Creating a new tag with GITHUB_TOKEN requires the current default-branch head.
+            # Only release-workflow changes may differ from the tested source build.
+            release_sha=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+            gh api "repos/$GH_REPO/compare/$SOURCE_SHA...$release_sha" > release-compare.json
+            jq -e '.status == "ahead" or .status == "identical"' release-compare.json
+            jq -e '[.files[] | select(.filename != ".github/workflows/release.yml")] | length == 0' release-compare.json
+            gh release create "$TAG" --target "$release_sha" --title "風雲再起 $TAG" --notes-file notes.md --draft --prerelease assets/*
           fi
           gh release edit "$TAG" --draft=false
