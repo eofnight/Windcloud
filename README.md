@@ -6,17 +6,17 @@
 
 ## 下載與安裝
 
-目前版本：**0.3.1（預覽版）**。三個平台均已通過 GitHub Actions 自動測試及打包。
+目前版本：**[0.3.1（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.1)**。三個平台均已通過 GitHub Actions 自動測試及打包，安裝檔可直接下載，不需登入 GitHub。
 
-| 作業系統 | 下載 | 安裝檔 |
+| 作業系統 | 安裝檔 | 免安裝 ZIP |
 | --- | --- | --- |
-| Windows x64 | [下載 Windows 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12424045543) | `.exe` |
-| macOS Apple Silicon（M 系列） | [下載 Apple Silicon 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12422829253) | `.dmg`／`.zip` |
-| macOS Intel | [下載 Intel 版](https://github.com/eofnight/Windcloud/actions/runs/39773416975/artifacts/12423387454) | `.dmg`／`.zip` |
+| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/Windcloud.Client.Setup.0.3.1.exe) | — |
+| macOS Apple Silicon（M 系列） | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/Windcloud.Client-0.3.1-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/Windcloud.Client-0.3.1-arm64-mac.zip) |
+| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/Windcloud.Client-0.3.1.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/Windcloud.Client-0.3.1-mac.zip) |
 
-下載 Actions 產物需登入 GitHub；解壓縮下載的產物後，Windows 執行 `.exe` 安裝，macOS 開啟 `.dmg` 並將 App 拖至「應用程式」資料夾。使用安裝版不需要安裝 Node.js 或 pnpm。
+Windows 執行 `.exe` 安裝；macOS 開啟 `.dmg` 並將 App 拖至「應用程式」資料夾，或解壓縮 `.zip` 取得 App。使用安裝版不需要安裝 Node.js 或 pnpm。
 
-目前安裝檔放在 Actions Artifacts，尚未發布至 Releases。Artifacts 有保存期限；若連結失效，請前往 [Actions](https://github.com/eofnight/Windcloud/actions) 選擇最近成功的「Test and build desktop clients」，於頁面下方 Artifacts 下載對應平台。
+此為尚未簽章／公證的預覽版。檔案核對碼：[SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.1/SHA256SUMS.txt)。其他版本請見 [Releases](https://github.com/eofnight/Windcloud/releases)。
 
 ## 開發與執行
 
