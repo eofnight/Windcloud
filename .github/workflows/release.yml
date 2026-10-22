@@ -8,17 +8,17 @@ on:
       run_id:
         description: Successful main build run ID
         required: true
-        default: '39773416975'
+        default: '39775629699'
         type: string
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.1
+        default: v0.3.2
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.1' }}
+  group: release-${{ inputs.tag || 'v0.3.2' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -30,8 +30,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RUN_ID: ${{ inputs.run_id || '39773416975' }}
-      TAG: ${{ inputs.tag || 'v0.3.1' }}
+      RUN_ID: ${{ inputs.run_id || '39775629699' }}
+      TAG: ${{ inputs.tag || 'v0.3.2' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -93,6 +93,8 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
+          - 新增 #WA／#WAIT 毫秒等待；例如 #wa 1000;pp，等待一秒後執行 pp，可用於 Trigger 與 Alias 的連續指令。
+          - 等待期間仍可手動輸入；斷線、暫停觸發器或重新載入規則時會取消等待。
           - 支援 WSS、zMUD 風格 Alias／Trigger、#CAP 擷取分頁、自訂 ANSI 色彩及中文字圖對齊；換行後恢復預設色。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此為尚未簽章／公證的預覽版。
