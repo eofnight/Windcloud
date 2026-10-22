@@ -2,10 +2,38 @@ import { argumentsOf, splitCommands, expand } from './parser.js';
 import { compilePattern } from './pattern.js';
 import { evaluate } from './expression.js';
 export class Engine {
-  constructor({ send = () => {}, notice = () => {}, capture = () => {} } = {}) {
-    this.send = send; this.notice = notice; this.capture = capture;
+  constructor({ send = () => {}, notice = () => {}, capture = () => {}, changed = () => {} } = {}) {
+    this.send = send; this.notice = notice; this.capture = capture; this.changed = changed;
+    this.pendingWait = null;
     this.aliases = []; this.triggers = []; this.captures = []; this.variables = Object.create(null);
-    this.groups = Object.create(null); this.paused = false; this.steps = 0;
+    this.groups = Object.create(null); this.paused = false;
+  }
+  get paused() { return this._paused; }
+  set paused(value) { this._paused = !!value; if (this._paused) this.cancelPending(); }
+  cancelPending() {
+    const pending = this.pendingWait;
+    this.pendingWait = null;
+    if (pending) { clearTimeout(pending.timer); pending.iterator.return(); }
+  }
+  advance(iterator, deferred = false) {
+    try {
+      const next = iterator.next();
+      if (!next.done) {
+        // Legacy zMUD has a single WAIT queue. A new WAIT replaces the old one.
+        this.cancelPending();
+        const pending = { iterator, timer: null, milliseconds: next.value };
+        this.pendingWait = pending;
+        if (next.value !== null) pending.timer = setTimeout(() => this.resume(pending), next.value);
+      }
+    } catch (error) {
+      if (!deferred) throw error;
+      this.notice('延遲指令錯誤：' + error.message);
+    } finally { if (deferred) this.changed(); }
+  }
+  resume(pending = this.pendingWait) {
+    if (!pending || pending !== this.pendingWait) return;
+    clearTimeout(pending.timer); this.pendingWait = null;
+    this.advance(pending.iterator, true);
   }
   snapshot() {
     return structuredClone({ aliases: this.aliases, triggers: this.triggers, captures: this.captures, variables: this.variables, groups: this.groups });
@@ -36,23 +64,23 @@ export class Engine {
       return { text: rule.text, target: rule.target, enabled: rule.enabled !== false, group: rule.group || '' };
     });
     if (new Set(c.map(rule => rule.target)).size > 64) throw Error('最多可設定 64 個擷取分頁');
+    this.cancelPending();
     this.aliases = a; this.triggers = t; this.captures = c; this.variables = vars; this.groups = groups;
   }
   active(rule) { return rule.enabled !== false && this.groups[rule.group] !== false; }
   execute(source) {
-    this.steps = 0;
-    this.run(source, [], false, 0);
+    this.advance(this.run(source, [], false, 0, { steps: 0 }));
   }
-  run(source, params, script, depth) {
+  *run(source, params, script, depth, context) {
     if (depth > 24) throw Error('Alias 遞迴過深，已停止');
     for (let raw of splitCommands(source)) {
       // Accept both #CAP {text} tab and the requested #cap【系統】連線精靈： system.
       raw = raw.replace(/^#(un)?cap(?=[^A-Za-z0-9_\s-])/i, '#$1cap ');
-      if (++this.steps > 200) throw Error('單次執行超過 200 個指令，已停止');
+      if (++context.steps > 200) throw Error('單次執行超過 200 個指令，已停止');
       const tokens = argumentsOf(raw);
       if (!tokens.length) continue;
       if (raw.startsWith('#')) {
-        this.command(raw, tokens, params, depth, script);
+        yield* this.command(raw, tokens, params, depth, script, context);
         continue;
       }
       const text = script ? expand(raw, this.variables, params) : raw;
@@ -67,19 +95,24 @@ export class Engine {
         // so server-provided captures cannot introduce new command separators.
         let body = alias.body;
         if (remaining) body += ' ' + remaining.replaceAll(';', '~;');
-        this.run(body, values, true, depth + 1);
+        yield* this.run(body, values, true, depth + 1, context);
       } else {
         this.send(text.replace(/~(.)/gs, '$1'));
       }
     }
   }
-  command(raw, tokens, params, depth, script) {
+  *command(raw, tokens, params, depth, script, context) {
     const name = tokens[0].value.toUpperCase();
     const args = tokens.slice(1);
     const value = i => args[i] ? (args[i].quoted ? args[i].value : expand(args[i].value, this.variables, params)) : '';
     const body = i => script ? expand(args[i]?.value ?? '', {}, params) : (args[i]?.value ?? '');
     const requireArgs = n => { if (args.length < n) throw Error(`${name} 缺少參數`); };
-    if (name === '#CAP') {
+    if (name === '#WA' || name === '#WAIT') {
+      if (args.length > 1) throw Error('格式：#WA [毫秒]');
+      const duration = args.length ? value(0) : null;
+      if (duration !== null && (!/^\d+$/.test(duration) || !Number.isSafeInteger(Number(duration)) || Number(duration) > 2147483647)) throw Error('等待時間必須為 0–2147483647 的整數毫秒');
+      yield duration === null ? null : Number(duration);
+    } else if (name === '#CAP') {
       if (!args.length) { this.notice(this.captures.map(rule => `${rule.text} → ${rule.target}`).join('\n') || '尚無擷取規則'); return; }
       requireArgs(2);
       if (args.length > 2) throw Error('格式：#CAP {觸發文字} {分頁名稱}；含空白時請用大括號');
@@ -129,7 +162,7 @@ export class Engine {
       const result = evaluate(args[0].value, this.variables, params);
       const condition = Number.isFinite(Number(result)) ? Number(result) !== 0 : !!result;
       const branch = args[condition ? 1 : 2];
-      if (branch) this.run(branch.value, params, true, depth + 1);
+      if (branch) yield* this.run(branch.value, params, true, depth + 1, context);
     } else if (name === '#MATH') {
       requireArgs(2); const key = value(0);
       if (!/^\w+$/.test(key)) throw Error('變數名稱格式錯誤');
@@ -138,7 +171,8 @@ export class Engine {
   }
   receive(line, mode = 'line') {
     if (this.paused) return;
-    this.steps = 0;
+    if (this.pendingWait?.milliseconds === null) this.resume();
+    const context = { steps: 0 };
     if (mode === 'line') {
       const targets = new Set();
       for (const rule of this.captures) {
@@ -149,7 +183,7 @@ export class Engine {
     for (const trigger of [...this.triggers]) {
       if (!this.active(trigger) || (trigger.mode || 'line') !== mode) continue;
       const result = compilePattern(trigger.pattern, this.variables, trigger.caseSensitive).exec(line.slice(0, 16384));
-      if (result) this.run(trigger.body, result.slice(1), true, 0);
+      if (result) this.advance(this.run(trigger.body, result.slice(1), true, 0, context));
     }
   }
 }

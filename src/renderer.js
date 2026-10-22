@@ -139,7 +139,7 @@ function openEditor(index=-1) {
   $('rule-key').value=rule.pattern||rule.text||rule.name||''; $('rule-body').value=(tab==='captures'?rule.target:rule.body)||''; $('rule-body').rows=tab==='captures'?1:5; $('rule-group').value=rule.group||'';
   $('rule-mode').value=rule.mode||'line'; $('rule-case').checked=!!rule.caseSensitive;
   $('trigger-options').hidden=tab!=='triggers'; $('group-label').hidden=tab==='variables';
-  $('editor-hint').textContent=tab==='triggers'?'使用 zMUD 比對式，例如 ^You get (%d) coins。擷取結果以 %1 取用。':tab==='aliases'?'例如名稱 kk，執行內容 kill %1;kick %1。變數在執行時展開。':tab==='captures'?'逐字比對伺服器訊息，擷取符合的完整文字行；主終端也會保留原訊息。':'變數名稱使用英文、數字與底線。在腳本內用 @名稱 取用。';
+  $('editor-hint').textContent=tab==='triggers'?'使用 zMUD 比對式，例如 ^You get (%d) coins，擷取結果用 %1。執行內容以 ; 串接；#wa 1000;pp 表示等一秒後執行 pp。':tab==='aliases'?'例如名稱 kk，執行內容 kill %1;kick %1。可用 #wa 1000;pp 等一秒後執行 pp。變數在執行時展開。':tab==='captures'?'逐字比對伺服器訊息，擷取符合的完整文字行；主終端也會保留原訊息。':'變數名稱使用英文、數字與底線。在腳本內用 @名稱 取用。';
   $('editor-error').textContent=''; $('editor').showModal(); $('rule-key').focus();
 }
 $('rule-form').onsubmit=async event=>{

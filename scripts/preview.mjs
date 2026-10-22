@@ -19,8 +19,8 @@ window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listene
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}
  if(name==='rules'){engine.restore(data);return config();}
  if(name==='pause'){engine.paused=data;return data;}
- if(name==='connect'){emit('connection','connected');emit('output','\\x1b[0m'+${JSON.stringify(banner.replaceAll('\n','\r\n'))});return;}
- if(name==='disconnect'){emit('connection','disconnected');return;}
+ if(name==='connect'){engine.cancelPending();emit('connection','connected');emit('output','\\x1b[0m'+${JSON.stringify(banner.replaceAll('\n','\r\n'))});return;}
+ if(name==='disconnect'){engine.cancelPending();emit('connection','disconnected');return;}
  if(name==='execute'){if(!data.secret){emit('command-echo',data.text);engine.execute(data.text);}return{config:config(),secret:!!data.secret};}
  return false;
 }};

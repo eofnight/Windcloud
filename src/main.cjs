@@ -40,6 +40,7 @@ function validateSettings(data) {
   if (!['big5','utf8'].includes(data.encoding)) throw Error('不支援的文字編碼');
 }
 function closeConnection() {
+  engine?.cancelPending();
   clearTimeout(promptTimer); connecting = false;
   if (socket) { const old = socket; socket = null; old.destroy(); }
   passwordNext = false; transmit('echo', true); state('disconnected');
@@ -80,7 +81,7 @@ app.whenReady().then(async () => {
   ({ executeInput } = await import('./input.js'));
   ({ GameConnection } = await import('./connection.js'));
   ({ normalizePreferences, migrateSettings } = await import('./preferences.js'));
-  engine = new EngineClass({ send: sendCommand, notice, capture: data => transmit('capture', data) }); settings = defaults();
+  engine = new EngineClass({ send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave }); settings = defaults();
   try {
     const loaded = JSON.parse(await fs.readFile(configPath(), 'utf8'));
     validateSettings(loaded); const migrated = migrateSettings({ ...defaults(), ...loaded }); engine.restore(migrated.engine); settings = migrated;

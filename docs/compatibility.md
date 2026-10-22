@@ -10,6 +10,7 @@
 - [Trigger 完整行與 Prompt 時機](https://www.zuggsoft.com/zmud/help55/TRIGGER.htm)
 - [Pattern Matching](https://www.zuggsoft.com/zmud/help5/Pattern_.htm)
 - [4.42+ Programming Language：解析與展開模式](https://www.zuggsoft.com/page.php?file=zmud%2Fprog.htm)
+- [WAIT：毫秒等待與單一等待佇列](https://www.zuggsoft.com/zmud/help/WAIT.htm)
 - [IF](https://www.zuggsoft.com/zmud/help5/IF.htm)
 - [Expressions](https://www.zuggsoft.com/zmud/help5/Expressi.htm)
 - [Advanced Triggers：萬用字元與指令分隔符](https://www.zuggsoft.com/library/book2/triggers.htm)
@@ -25,6 +26,7 @@
 | 群組 | 定義的第三參數、`#T+ name`、`#T- name`；群組同時影響 Alias 與 Trigger |
 | 條件及運算 | `#IF (expression) {true} {false}`、`#MATH`、`#VAR n [expression]` |
 | 運算子 | `+ - * / \`、`= != <> > < >= <=`、`and or xor & | !`、括號；除法截斷小數 |
+| 等待 | `#WA [毫秒]`／`#WAIT [毫秒]`；省略時間等下一行／提示；新的等待取代舊等待；巢狀 Alias／IF 維持先後順序 |
 | 其他 | `#SHOW`／`#SAY` 僅本機輸出、`#SEND {文字}` 送至伺服器、`#UNALIAS`、`#UNTRIGGER`、`#UNVAR` |
 
 `%w` 依舊版文件比對英文字母，不代表任何 Unicode 單字。中文以明確文字或 `*` 擷取。
@@ -43,9 +45,10 @@
 - 未支援 `[range]`、`{^string}`、巢狀擷取、跨行／狀態式 Trigger、動態建立 Trigger 的複雜求值模式。
 - 相鄰無界萬用字元會拒絕，避免不明確且耗時的比對；Pattern 最長 1024 字元，單行觸發文字上限 16384 字元。
 - 僅支援固定文字選項 `{a|b}`，選項內不能再放萬用字元。
-- 沒有完整函數系統、清單／陣列、`#LOOP`、`#WAIT`、`#ALARM`、`#COLOR`、`#GAG`、`#CLASS` 階層、快捷鍵編輯、VBScript、外部程式執行。
+- 沒有完整函數系統、清單／陣列、`#LOOP`、`#ALARM`、`#COLOR`、`#GAG`、`#CLASS` 階層、快捷鍵編輯、VBScript、外部程式執行。
 - 引號中變數不展開；尚未完整支援 `<...>` 強制展開、遞迴函數求值、字元自訂、`a=b` 變數賦值模式與特殊 Alias（atconnect 等）。
 - 參數展開後不重新按分號切割；避免伺服器擷取內容或使用者參數變成額外指令。這是刻意限制，不宣稱與所有 zMUD 邊界行為相同。
+- 等待採非阻塞計時；暫停、斷線及成功重新載入規則會取消等待。等待上限為 2147483647 毫秒；省略時間以引擎收到下一筆完整行／提示為準，不是原始網路封包。
 - 單次最多 200 個執行步驟、遞迴最多 24 層；超過後停止並報錯，已送出的指令無法回收。
 - Prompt 以 160 ms 無新資料判定，與歷史 zMUD 封包／Prompt 判斷不保證完全一致；同一內容在更新前只觸發一次。
 - 預設網頁 WSS，進階連線設定仍可選 Telnet 或自動切換。風雲再起 Telnet 用 Big5，原網頁 WSS 用 UTF-8；兩種方式共用相同 Trigger／Alias 引擎。WSS 依原客戶端以文字 frame 送遊戲指令、二進位 frame 處理 Telnet 協商。
