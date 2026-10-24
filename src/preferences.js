@@ -28,9 +28,9 @@ export function normalizePreferences(value = {}) {
       colors[key] = color.toLowerCase();
     }
   }
-  for (const key of ['showConnectionInfo','boldAsBright']) if (value[key] !== undefined && typeof value[key] !== 'boolean') throw Error('顯示選項必須為開啟或關閉');
+  for (const key of ['showConnectionInfo','showTimers','boldAsBright']) if (value[key] !== undefined && typeof value[key] !== 'boolean') throw Error('顯示選項必須為開啟或關閉');
   for (const [key,min,max] of [['fontSize',11,24],['columns',80,240]]) if (value[key] !== undefined && (!Number.isInteger(value[key]) || value[key] < min || value[key] > max)) throw Error('顯示數值超出範圍：' + key);
-  return { fontSize: value.fontSize ?? 14, columns: value.columns ?? 120, showConnectionInfo: value.showConnectionInfo ?? false, boldAsBright: value.boldAsBright ?? true, colors };
+  return { fontSize: value.fontSize ?? 14, columns: value.columns ?? 120, showConnectionInfo: value.showConnectionInfo ?? false, showTimers: value.showTimers ?? false, boldAsBright: value.boldAsBright ?? true, colors };
 }
 export function terminalTheme(preferences) {
   const theme = {};

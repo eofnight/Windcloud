@@ -97,3 +97,10 @@ dialog textarea { resize:vertical; font:13px/1.7 monospace; }
 body.paused #pause { color:var(--accent); border-color:var(--accent); }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media(max-width:760px) { header{padding:10px 14px}.brand{gap:5px}h1{font-size:19px}.credit{font-size:10px}.connection-state{font-size:10px}.toolbar{padding:7px 10px}.toolbar button{padding:6px 8px;font-size:11px}.spacer{display:none}.toolbar-divider{margin:0}.panel-buttons{gap:0}.secret-label{gap:2px}#rules-panel{width:310px} }
+
+#timers-panel { flex-shrink:0; max-height:32vh; overflow:auto; padding:10px 16px; border-bottom:1px solid var(--line); }
+.timer-heading,.timer-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.timer-heading { justify-content:space-between; margin-bottom:8px; }
+.timer-row { padding:7px 0; border-bottom:1px solid var(--line); font-size:12px; }
+.timer-row code { flex:1; min-width:120px; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--muted); }
+.timer-row strong { overflow-wrap:anywhere; }

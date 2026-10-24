@@ -1,15 +1,29 @@
 import { argumentsOf, splitCommands, expand } from './parser.js';
 import { compilePattern } from './pattern.js';
+import { Timers, validateTimers } from './timers.js';
 import { evaluate } from './expression.js';
 export class Engine {
-  constructor({ send = () => {}, notice = () => {}, capture = () => {}, changed = () => {}, echo = () => {} } = {}) {
+  constructor({ send = () => {}, notice = () => {}, capture = () => {}, changed = () => {}, echo = () => {}, timerChanged = () => {}, canStartTimers = () => false } = {}) {
     this.send = send; this.notice = notice; this.capture = capture; this.changed = changed; this.echo = echo;
     this.pendingWait = null;
+    this.timers = new Timers({ canStart: canStartTimers, changed: timerChanged,
+      stopped: name => { if (this.pendingWait?.context?.timerName === name) this.cancelPending(); },
+      fire: rule => {
+        const context = { budget: { steps: 0 }, trigger: true, timerName: rule.name };
+        try { this.advance(this.run(rule.body, [], true, 0, context), false, context); }
+        catch (error) { this.timerError(rule.name, error); }
+        this.changed();
+      }
+    });
     this.aliases = []; this.triggers = []; this.captures = []; this.variables = Object.create(null);
     this.groups = Object.create(null); this.triggerGroups = Object.create(null); this.paused = false;
   }
+  timerError(name, error) {
+    this.timers.stop(name);
+    this.notice(`計時器「${name}」錯誤：${error.message}`);
+  }
   get paused() { return this._paused; }
-  set paused(value) { this._paused = !!value; if (this._paused) this.cancelPending(); }
+  set paused(value) { this._paused = !!value; if (this._paused && !this.pendingWait?.context?.timerName) this.cancelPending(); }
   cancelPending() {
     const pending = this.pendingWait;
     this.pendingWait = null;
@@ -27,7 +41,8 @@ export class Engine {
       }
     } catch (error) {
       if (!deferred) throw error;
-      this.notice('延遲指令錯誤：' + error.message);
+      if (context?.timerName) this.timerError(context.timerName, error);
+      else this.notice('延遲指令錯誤：' + error.message);
     } finally { if (deferred) this.changed(); }
   }
   resume(pending = this.pendingWait) {
@@ -36,10 +51,12 @@ export class Engine {
     this.advance(pending.iterator, true, pending.context);
   }
   snapshot() {
-    return structuredClone({ aliases: this.aliases, triggers: this.triggers, captures: this.captures, variables: this.variables, groups: this.groups, triggerGroups: this.triggerGroups });
+    return structuredClone({ aliases: this.aliases, triggers: this.triggers, captures: this.captures, variables: this.variables, groups: this.groups, triggerGroups: this.triggerGroups, timers: this.timers.rules });
   }
-  restore(state) {
+  restore(state, { preserveTimers = false } = {}) {
     if (!state || typeof state !== 'object') throw Error('無效的設定');
+    const timers = validateTimers(state.timers);
+    for (const rule of timers) splitCommands(rule.body);
     const aliases = state.aliases ?? [], triggers = state.triggers ?? [], captures = state.captures ?? [];
     if (!Array.isArray(aliases) || !Array.isArray(triggers) || !Array.isArray(captures) || aliases.length + triggers.length + captures.length > 2000) throw Error('無效的規則清單');
     const rules = (list, trigger) => list.map(rule => {
@@ -65,11 +82,14 @@ export class Engine {
       return { text: rule.text, target: rule.target, enabled: rule.enabled !== false, group: rule.group || '' };
     });
     if (new Set(c.map(rule => rule.target)).size > 64) throw Error('最多可設定 64 個擷取分頁');
-    this.cancelPending();
+    const pendingName = this.pendingWait?.context?.timerName;
+    const keepWait = preserveTimers && pendingName && JSON.stringify(this.timers.rules.find(r => r.name === pendingName)) === JSON.stringify(timers.find(r => r.name === pendingName));
+    if (!keepWait) this.cancelPending();
+    this.timers.replace(timers, preserveTimers);
     this.aliases = a; this.triggers = t; this.captures = c; this.variables = vars; this.groups = groups; this.triggerGroups = triggerGroups;
   }
   active(rule, trigger = false) { return rule.enabled !== false && this.groups[rule.group] !== false && (!trigger || this.triggerGroups[rule.group] !== false); }
-  dispatch(text, context) { if (context.trigger) this.echo(text); this.send(text); }
+  dispatch(text, context) { if (context.trigger) this.echo(text, context.timerName); this.send(text); }
   execute(source) {
     const context = { budget: { steps: 0 }, trigger: false };
     this.advance(this.run(source, [], false, 0, context), false, context);
@@ -115,6 +135,9 @@ export class Engine {
       const duration = args.length ? value(0) : null;
       if (duration !== null && (!/^\d+$/.test(duration) || !Number.isSafeInteger(Number(duration)) || Number(duration) > 2147483647)) throw Error('等待時間必須為 0–2147483647 的整數毫秒');
       yield duration === null ? null : Number(duration);
+    } else if (name === '#TI+' || name === '#TI-') {
+      if (args.length > 1 || (args.length && !value(0).trim())) throw Error('格式：#ti+ [計時器名稱] 或 #ti- [計時器名稱]');
+      this.timers.control(name === '#TI+', args.length ? value(0) : undefined);
     } else if (name === '#CAP') {
       if (!args.length) { this.notice(this.captures.map(rule => `${rule.text} → ${rule.target}`).join('\n') || '尚無擷取規則'); return; }
       requireArgs(2);
@@ -124,7 +147,7 @@ export class Engine {
       const next = this.snapshot();
       const index = next.captures.findIndex(c => c.text === rule.text && c.target === rule.target);
       if (index < 0) next.captures.push(rule); else next.captures[index] = rule;
-      this.restore(next);
+      this.restore(next, { preserveTimers: true });
     } else if (name === '#UNCAP') {
       requireArgs(1);
       this.captures = this.captures.filter(rule => !(rule.text === body(0) && (!args[1] || rule.target === value(1))));
@@ -180,8 +203,8 @@ export class Engine {
     } else throw Error(`尚未支援 ${name}，指令未送出`);
   }
   receive(line, mode = 'line') {
+    if (this.pendingWait?.milliseconds === null && (!this.paused || this.pendingWait.context?.timerName)) this.resume();
     if (this.paused) return;
-    if (this.pendingWait?.milliseconds === null) this.resume();
     const budget = { steps: 0 };
     if (mode === 'line') {
       const targets = new Set();

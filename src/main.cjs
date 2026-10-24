@@ -43,7 +43,7 @@ async function persist() {
 let saveChain = Promise.resolve();
 function save() { saveChain = saveChain.catch(() => {}).then(persist); return saveChain; }
 function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => save().catch(e => notice('設定儲存失敗：' + e.message)), 350); }
-function config() { return { ...settings, engine: engine.snapshot(), paused: engine.paused }; }
+function config() { return { ...settings, engine: engine.snapshot(), paused: engine.paused, timerState: engine.timers.state() }; }
 function validateSettings(data) {
   if (!data || typeof data.host !== 'string' || !/^[a-zA-Z0-9.:-]{1,253}$/.test(data.host)) throw Error('主機格式錯誤');
   if (!Number.isInteger(data.port) || data.port < 1 || data.port > 65535) throw Error('連接埠必須在 1–65535');
@@ -51,6 +51,7 @@ function validateSettings(data) {
   if (!['big5','utf8'].includes(data.encoding)) throw Error('不支援的文字編碼');
 }
 function closeConnection() {
+  engine?.timers.stopAll();
   engine?.cancelPending();
   clearTimeout(promptTimer); connecting = false;
   if (socket) { const old = socket; socket = null; old.destroy(); }
@@ -93,7 +94,15 @@ app.whenReady().then(async () => {
   ({ checkForUpdate } = await import('./updates.js'));
   ({ GameConnection } = await import('./connection.js'));
   ({ normalizePreferences, migrateSettings } = await import('./preferences.js'));
-  engine = new EngineClass({ send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave, echo: text => echoTriggeredCommand({ text, passwordPrompt:passwordNext, echo: text => transmit('trigger-echo',text) }) }); settings = defaults();
+  engine = new EngineClass({
+    send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave,
+    canStartTimers: () => !!socket && !socket.destroyed && !connecting,
+    timerChanged: () => transmit('timer-state', engine.timers.state()),
+    echo: (text, timerName) => echoTriggeredCommand({ text, passwordPrompt: passwordNext,
+      echo: text => transmit(timerName ? 'timer-echo' : 'trigger-echo', timerName ? { text, name: timerName } : text)
+    })
+  });
+  settings = defaults();
   try {
     const loaded = JSON.parse(await fs.readFile(configPath(), 'utf8'));
     validateSettings(loaded); const migrated = migrateSettings({ ...defaults(), ...loaded }); engine.restore(migrated.engine); settings = migrated;
@@ -126,13 +135,18 @@ app.whenReady().then(async () => {
       return { config: config(), secret: result.secret };
     } finally { scheduleSave(); }
   });
-  handle('rules', data => { engine.restore(data); scheduleSave(); return config(); });
+  handle('rules', data => { engine.restore(data, { preserveTimers: true }); scheduleSave(); return config(); });
+  handle('timer-control', ({ enabled, name } = {}) => {
+    if (typeof enabled !== 'boolean' || (name !== undefined && typeof name !== 'string')) throw Error('無效的計時器操作');
+    engine.timers.control(enabled, name); return config();
+  });
   handle('preferences', data => { settings.preferences = normalizePreferences(data); scheduleSave(); return config(); });
   handle('pause', paused => { engine.paused = !!paused; return engine.paused; });
   handle('resize', ({cols, rows}) => { if (Number.isInteger(cols) && Number.isInteger(rows)) telnet?.resize(cols,rows); });
   handle('export', async () => {
     const result = await dialog.showSaveDialog(win, { defaultPath: 'windcloud-settings.json', filters: [{name: 'JSON', extensions:['json']}] });
-    if (!result.canceled) await fs.writeFile(result.filePath, JSON.stringify(config(), null, 2), { mode: 0o600 });
+    const { timerState, ...exported } = config(); // Runtime countdowns must never enter settings exports.
+    if (!result.canceled) await fs.writeFile(result.filePath, JSON.stringify(exported, null, 2), { mode: 0o600 });
     return !result.canceled;
   });
   handle('import', async () => {

@@ -10,8 +10,9 @@ import {Engine} from '/src/engine.js';
 import {normalizePreferences} from '/src/preferences.js';
 const listeners=new Map();
 const emit=(name,data)=>(listeners.get(name)||[]).forEach(fn=>fn(data));
-const engine=new Engine({send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data),echo:text=>emit('trigger-echo',text)});
-const config=()=>({version:2,host:'windcloud.muds.me',port:443,encoding:'utf8',transport:'websocket',preferences,engine:engine.snapshot(),paused:engine.paused});
+let connected=false;
+const engine=new Engine({canStartTimers:()=>connected,timerChanged:()=>emit('timer-state',engine.timers.state()),send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data),echo:(text,name)=>emit(name?'timer-echo':'trigger-echo',name?{text,name}:text)});
+const config=()=>({version:2,host:'windcloud.muds.me',port:443,encoding:'utf8',transport:'websocket',preferences,engine:engine.snapshot(),paused:engine.paused,timerState:engine.timers.state()});
 let preferences=normalizePreferences();
 window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listeners.set(name,list);return()=>listeners.set(name,list.filter(x=>x!==fn));},async call(name,data){
  if(name==='init')return config();
@@ -19,10 +20,11 @@ window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listene
  if(name==='open-update')return;
  if(name==='resize')return;
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}
- if(name==='rules'){engine.restore(data);return config();}
+ if(name==='rules'){engine.restore(data,{preserveTimers:true});return config();}
+ if(name==='timer-control'){engine.timers.control(data.enabled,data.name);return config();}
  if(name==='pause'){engine.paused=data;return data;}
- if(name==='connect'){engine.cancelPending();emit('connection','connected');emit('output','\\x1b[0m'+${JSON.stringify(banner.replaceAll('\n','\r\n'))});return;}
- if(name==='disconnect'){engine.cancelPending();emit('connection','disconnected');return;}
+ if(name==='connect'){engine.timers.stopAll();engine.cancelPending();connected=true;emit('connection','connected');emit('output','\\x1b[0m'+${JSON.stringify(banner.replaceAll('\n','\r\n'))});return;}
+ if(name==='disconnect'){connected=false;engine.timers.stopAll();engine.cancelPending();emit('connection','disconnected');return;}
  if(name==='execute'){if(!data.secret){emit('command-echo',data.text);engine.execute(data.text);}return{config:config(),secret:!!data.secret};}
  return false;
 }};

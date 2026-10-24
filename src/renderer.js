@@ -43,6 +43,8 @@ function applyPreferences(value) {
   term.options.drawBoldTextInBrightColors = preferences.boldAsBright;
   document.documentElement.style.setProperty('--terminal-bg', preferences.colors.background);
   document.documentElement.style.setProperty('--terminal-fg', preferences.colors.foreground);
+  $('timers-panel').hidden = !preferences.showTimers;
+  $('show-timers').checked = preferences.showTimers;
   $('status-bar').hidden = !preferences.showConnectionInfo;
   $('show-connection-info').checked = preferences.showConnectionInfo;
   for (const record of captureViews.values()) record.pane.style.fontSize = preferences.fontSize + 'px';
@@ -95,6 +97,7 @@ function selectView(target) {
 }
 $('game-tab').onclick = () => selectView(null);
 function render() {
+  renderTimers();
   for (const rule of config.engine.captures) ensureCapture(rule.target);
   $('capture-count').textContent = config.engine.captures.length;
   $('alias-count').textContent = config.engine.aliases.length; $('trigger-count').textContent = config.engine.triggers.length;
@@ -290,3 +293,64 @@ $('check-updates').onclick = async () => {
   finally { $('check-updates').disabled=false; }
 };
 call('init').then(loadConfig).catch(error);
+
+let timerEditIndex = -1;
+function renderTimers() {
+  const rules = config.engine.timers ?? [];
+  $('add-timer').disabled = rules.length >= 3;
+  $('timers-list').replaceChildren();
+  if (!rules.length) $('timers-list').textContent = '尚無計時器，請新增名稱、時間與執行指令。';
+  rules.forEach((rule, index) => {
+    const row = document.createElement('div'); row.className = 'timer-row';
+    const title = document.createElement('strong'); title.textContent = rule.name;
+    const countdown = document.createElement('span'); countdown.dataset.timerName = rule.name;
+    const mode = document.createElement('span'); mode.textContent = `${rule.seconds} 秒 · ${rule.mode === 'once' ? '單次' : '循環'}`;
+    const body = document.createElement('code'); body.textContent = rule.body;
+    const toggle = document.createElement('button');
+    const running = config.timerState?.some(s => s.name === rule.name && s.running);
+    toggle.textContent = running ? '停止' : '啟動';
+    toggle.onclick = async () => {
+      try { config = await call('timer-control', { enabled: !running, name: rule.name }); renderTimers(); } catch(e) { error(e); }
+    };
+    const edit = document.createElement('button'); edit.textContent = '編輯'; edit.onclick = () => openTimerEditor(index);
+    const remove = document.createElement('button'); remove.textContent = '刪除';
+    remove.onclick = async () => { const next = structuredClone(config.engine); next.timers.splice(index, 1); await saveRules(next); };
+    row.append(title, mode, countdown, body, toggle, edit, remove); $('timers-list').append(row);
+  });
+  updateTimerCountdowns();
+}
+function updateTimerCountdowns() {
+  for (const element of document.querySelectorAll('[data-timer-name]')) {
+    const state = config?.timerState?.find(s => s.name === element.dataset.timerName);
+    element.textContent = state?.running ? `剩餘 ${Math.max(0, Math.ceil((state.dueAt - Date.now()) / 1000))} 秒` : '已停止';
+  }
+}
+setInterval(updateTimerCountdowns, 250);
+window.mud.on('timer-state', state => { if (config) { config.timerState = state; renderTimers(); } });
+window.mud.on('timer-echo', ({name, text}) => echoCommand(text, `計時器 ${name} › `));
+function openTimerEditor(index = -1) {
+  timerEditIndex = index;
+  const rule = config.engine.timers?.[index];
+  $('timer-editor-title').textContent = rule ? '編輯計時器' : '新增計時器';
+  $('timer-name').value = rule?.name ?? '';
+  $('timer-seconds').value = rule?.seconds ?? 60;
+  $('timer-mode').value = rule?.mode ?? 'repeat';
+  $('timer-body').value = rule?.body ?? '';
+  $('timer-error').textContent = ''; $('timer-editor').showModal(); $('timer-name').focus();
+}
+$('add-timer').onclick = () => openTimerEditor();
+$('cancel-timer').onclick = () => $('timer-editor').close();
+$('timer-form').onsubmit = async event => {
+  event.preventDefault();
+  const next = structuredClone(config.engine); next.timers ??= [];
+  const rule = { name: $('timer-name').value.trim(), seconds: Number($('timer-seconds').value), mode: $('timer-mode').value, body: $('timer-body').value };
+  if (timerEditIndex < 0) next.timers.push(rule); else next.timers[timerEditIndex] = rule;
+  try { config = await call('rules', next);
+    if (timerEditIndex >= 0) config = await call('timer-control', { enabled: false, name: rule.name });
+    render(); $('timer-editor').close(); status('計時器已儲存，請手動啟動。'); }
+  catch(e) { $('timer-error').textContent = e.message; }
+};
+$('show-timers').onchange = async () => {
+  try { config = await call('preferences', {...preferences, showTimers: $('show-timers').checked}); applyPreferences(config.preferences); }
+  catch(e) { applyPreferences(config.preferences); error(e); }
+};
