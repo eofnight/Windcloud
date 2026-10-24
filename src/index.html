@@ -8,7 +8,7 @@
 </head>
 <body>
   <header>
-    <div class="brand"><h1>風雲再起</h1><span class="credit">create by Eofnight</span></div>
+    <div class="brand"><h1>風雲再起</h1><span class="credit">create by Eofnight</span><span id="profile-name" class="credit"></span></div>
     <div class="connection-state"><i id="indicator"></i><span id="connection-state">尚未連線</span></div>
     <details id="settings-menu"><summary>設定</summary><div class="menu-content">
       <label class="check"><input id="show-connection-info" type="checkbox"> 顯示狀態列</label>
@@ -17,7 +17,7 @@
   </header>
   <aside id="update-notice" role="status" hidden><span id="update-message"></span><button id="download-update">前往下載</button><button id="dismiss-update" aria-label="關閉更新提醒">✕</button></aside>
   <section class="toolbar" aria-label="操作選單">
-    <button id="connect" class="primary">連線</button><button id="disconnect" disabled>斷線</button>
+    <button id="connect" class="primary">連線</button><button id="disconnect" disabled>斷線</button><button id="new-window">新增連線視窗</button>
     <div class="toolbar-divider"></div>
     <nav class="panel-buttons" aria-label="規則面板">
       <button data-panel="aliases" aria-expanded="false" aria-controls="rules-panel">Alias</button>
@@ -48,6 +48,13 @@
   </main>
   <div id="capture-menu" role="menu" aria-label="擷取分頁操作" hidden><button id="close-capture-tab" role="menuitem">關閉分頁</button></div>
   <footer id="status-bar" hidden><span id="status" role="status">就緒。</span></footer>
+  <dialog id="new-window-dialog"><form id="new-window-form">
+    <div class="dialog-heading"><h2>新增連線視窗</h2><button id="cancel-new-window" type="button" aria-label="關閉新增視窗">✕</button></div>
+    <label>角色設定<select id="window-profile"><option value="">建立新的角色設定</option></select></label>
+    <label id="window-name-label">新角色設定名稱<input id="window-name" maxlength="40" required autocomplete="off"></label>
+    <p class="hint">每個角色獨立保存連線、Alias、觸發、變數與計時器。開啟後請自行連線登入；已開啟的角色會切換到原視窗。</p>
+    <p id="new-window-error" role="alert"></p><div class="dialog-actions"><button class="primary" type="submit">開啟視窗</button></div>
+  </form></dialog>
   <dialog id="timer-editor"><form id="timer-form">
     <div class="dialog-heading"><h2 id="timer-editor-title">新增計時器</h2><button id="cancel-timer" type="button" aria-label="關閉計時器編輯">✕</button></div>
     <label>名稱<input id="timer-name" maxlength="40" required></label>

@@ -110,7 +110,7 @@ $('close-capture-tab').onclick = () => {
   closeCaptureMenu(); if (!record) return;
   if (activeView === target) selectView(null);
   record.button.remove(); record.pane.remove(); captureViews.delete(target);
-  (captureViews.get(activeView)?.button ?? $('game-tab')).focus(); status('已關閉擷取分頁並清除本次紀錄；擷取規則保留。');
+  (captureViews.get(activeView)?.button ?? $('game-tab')).focus(); status('已關閉本視窗擷取分頁；共用紀錄與擷取規則保留。');
 };
 document.addEventListener('pointerdown', event => { if (!event.target.closest('#capture-menu')) closeCaptureMenu(); });
 document.addEventListener('keydown', event => {
@@ -154,8 +154,8 @@ function render() {
   });
   $('pause').textContent=config.paused?'恢復觸發器':'暫停觸發器'; document.body.classList.toggle('paused',config.paused);
 }
-async function saveRules(next) { try { config=await call('rules',next); render(); status('規則已更新，自動儲存。'); } catch(e) {error(e); render();} }
-function loadConfig(data) { config=data; $('host').value=data.host; $('port').value=data.port; $('encoding').value=data.encoding; $('transport').value=data.transport||'websocket'; applyPreferences(data.preferences); updateConnectionFields(); render(); }
+async function saveRules(next) { try { config=await call('rules',next); render(); syncCaptureHistory(); status('規則已更新，自動儲存。'); } catch(e) {error(e); render();} }
+function loadConfig(data) { config=data; $('profile-name').textContent = data.profile?.name ?? '預設角色'; document.title = '風雲再起 — ' + $('profile-name').textContent; syncCaptureHistory(); $('host').value=data.host; $('port').value=data.port; $('encoding').value=data.encoding; $('transport').value=data.transport||'websocket'; applyPreferences(data.preferences); updateConnectionFields(); render(); }
 function openEditor(index=-1) {
   editIndex=index;
   const list=tab==='variables'?Object.entries(config.engine.variables).map(([name,body])=>({name,body})):config.engine[tab];
@@ -183,7 +183,7 @@ $('rule-form').onsubmit=async event=>{
     if(duplicate>=0) { $('editor-error').textContent='已有相同名稱或比對式的規則，請編輯現有規則。'; return; }
     if(editIndex<0) next[tab].push(rule); else next[tab][editIndex]=rule;
   }
-  try { config=await call('rules',next); render(); $('editor').close(); status('規則已儲存。'); } catch(e) { $('editor-error').textContent=e.message; }
+  try { config=await call('rules',next); render(); syncCaptureHistory(); $('editor').close(); status('規則已儲存。'); } catch(e) { $('editor-error').textContent=e.message; }
 };
 $('cancel').onclick=()=>$('editor').close(); $('add-rule').onclick=()=>tab === 'timers' ? openTimerEditor() : openEditor();
 for(const button of document.querySelectorAll('[data-tab]')) button.onclick=()=>{
@@ -192,7 +192,10 @@ for(const button of document.querySelectorAll('[data-tab]')) button.onclick=()=>
 $('connect').onclick=async()=>{try{await call('connect',{host:$('host').value.trim(),port:Number($('port').value),encoding:$('encoding').value,transport:$('transport').value});}catch(e){error(e);}};
 $('disconnect').onclick=()=>call('disconnect').catch(error);
 $('pause').onclick=async()=>{try{config.paused=await call('pause',!config.paused);render();}catch(e){error(e);}};
-$('clear').onclick=()=>{if(activeView===null)term.clear();else{const record=captureViews.get(activeView);record.log.clear();record.pane.textContent='';updateCaptureLabel(activeView);}status('已清除目前分頁。');};
+$('clear').onclick=async()=>{
+  if(activeView===null) { term.clear(); status('已清除目前分頁。'); }
+  else { try { await call('capture-clear', activeView); status('已清除所有視窗的同名擷取紀錄。'); } catch(e) { error(e); } }
+};
 $('export').onclick=()=>call('export').then(saved=>status(saved?'設定已匯出。':'已取消匯出。')).catch(error);
 $('import').onclick=()=>call('import').then(data=>{if(data){loadConfig(data);status('已匯入設定；觸發器已暫停，請檢查後恢復。');}}).catch(error);
 $('save-log').onclick=()=>call('log',activeView===null?log:captureViews.get(activeView).log.text()).catch(error);
@@ -207,7 +210,7 @@ $('command-form').onsubmit=async event=>{
     const result=await call('execute',{text,secret}); config=result.config;
     if(result.secret) { if(input.value===text)input.value=''; }
     else if(text){history.push(text);if(history.length>100)history.shift();historyIndex=history.length;}
-    render();
+    render(); syncCaptureHistory();
   }catch(e){error(e);}
 };
 document.addEventListener('keydown', event => {
@@ -236,6 +239,26 @@ function echoCommand(text, prefix = '› ') {
 }
 window.mud.on('command-echo', text => echoCommand(text));
 window.mud.on('trigger-echo', text => echoCommand(text, '觸發 › '));
+function applySharedCapture({target, lines, version}, history = false) {
+  let record = captureViews.get(target);
+  if (!record && !lines.length) return;
+  record ??= ensureCapture(target);
+  if (version <= (record.sharedVersion ?? -1)) return;
+  const active = activeView === target;
+  const unread = record.log.unread;
+  const delta = record.sharedVersion === undefined ? lines.length : 1;
+  const atBottom = record.pane.scrollTop + record.pane.clientHeight >= record.pane.scrollHeight - 24;
+  record.log.clear();
+  for (const line of lines) record.log.append(clean(line), true);
+  record.log.unread = active || history || !lines.length ? 0 : unread + delta;
+  record.sharedVersion = version; record.pane.textContent = record.log.text();
+  if (active && atBottom) record.pane.scrollTop = record.pane.scrollHeight;
+  updateCaptureLabel(target);
+}
+async function syncCaptureHistory() {
+  try { for (const snapshot of await call('capture-history')) applySharedCapture(snapshot, true); } catch(e) { error(e); }
+}
+window.mud.on('capture-shared', snapshot => applySharedCapture(snapshot));
 window.mud.on('capture', ({target, line}) => {
   const record = ensureCapture(target), active = activeView === target;
   const previousScroll = record.pane.scrollTop;
@@ -318,6 +341,34 @@ $('check-updates').onclick = async () => {
     else { $('update-notice').hidden=true; term.write(output.local('[系統] 目前已是最新版本。',preferences.colors.info)); }
   } catch(e) { error(e); }
   finally { $('check-updates').disabled=false; }
+};
+$('new-window').onclick = async () => {
+  try {
+    const available = await call('profiles');
+    $('window-profile').replaceChildren();
+    const fresh = document.createElement('option'); fresh.value = ''; fresh.textContent = '建立新的角色設定'; $('window-profile').append(fresh);
+    for (const profile of available) {
+      const option = document.createElement('option'); option.value = profile.id; option.textContent = profile.name + (profile.open ? '（已開啟）' : ''); $('window-profile').append(option);
+    }
+    $('window-profile').value = ''; $('window-name').value = ''; updateWindowProfile();
+    $('new-window-error').textContent = ''; $('new-window-dialog').showModal(); $('window-name').focus();
+  } catch(e) { error(e); }
+};
+function updateWindowProfile() {
+  const fresh = !$('window-profile').value;
+  $('window-name-label').hidden = !fresh; $('window-name').required = fresh;
+}
+$('window-profile').onchange = updateWindowProfile;
+$('cancel-new-window').onclick = () => $('new-window-dialog').close();
+$('new-window-form').onsubmit = async event => {
+  event.preventDefault();
+  const submit = event.submitter ?? $('new-window-form').querySelector('[type=submit]'); submit.disabled = true;
+  try {
+    const id = $('window-profile').value;
+    await call('new-window', id ? { id } : { name: $('window-name').value.trim() });
+    $('new-window-dialog').close(); status('角色視窗已開啟，請在該視窗連線登入。');
+  } catch(e) { $('new-window-error').textContent = e.message; }
+  finally { submit.disabled = false; }
 };
 call('init').then(loadConfig).catch(error);
 

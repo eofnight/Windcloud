@@ -132,7 +132,13 @@ export class Engine {
     const value = i => args[i] ? (args[i].quoted ? args[i].value : expand(args[i].value, this.variables, params)) : '';
     const body = i => script ? expand(args[i]?.value ?? '', {}, params) : (args[i]?.value ?? '');
     const requireArgs = n => { if (args.length < n) throw Error(`${name} 缺少參數`); };
-    if (name === '#WA' || name === '#WAIT') {
+    if (['#TI', '#TIMER'].includes(name)) {
+      if (args.length) throw Error('格式：#TI 或 #TIMER（列出計時器）');
+      this.notice(this.timers.rules.map(rule => {
+        const running = this.timers.running.has(rule.name);
+        return `${rule.name} [${running ? '執行中' : '停止'} · ${rule.seconds} 秒 · ${rule.mode === 'once' ? '單次' : '循環'}] → ${rule.body}`;
+      }).join('\n') || '尚無計時器');
+    } else if (name === '#WA' || name === '#WAIT') {
       if (args.length > 1) throw Error('格式：#WA [毫秒]');
       const duration = args.length ? value(0) : null;
       if (duration !== null && (!/^\d+$/.test(duration) || !Number.isSafeInteger(Number(duration)) || Number(duration) > 2147483647)) throw Error('等待時間必須為 0–2147483647 的整數毫秒');
@@ -154,7 +160,7 @@ export class Engine {
       requireArgs(1);
       this.captures = this.captures.filter(rule => !(rule.text === body(0) && (!args[1] || rule.target === value(1))));
     } else if (['#ALIAS', '#AL'].includes(name)) {
-      if (!args.length) { this.notice(this.aliases.map(a => `${a.name} → ${a.body}`).join('\n') || '尚無 Alias'); return; }
+      if (!args.length) { this.notice(this.aliases.map(a => `${a.name} [${this.active(a) ? '啟用' : '停用'}${a.group ? ' · ' + a.group : ''}] → ${a.body}`).join('\n') || '尚無 Alias'); return; }
       if (args.length === 1) { this.notice(this.aliases.find(a => a.name === value(0))?.body ?? '找不到 Alias'); return; }
       const alias = { name: value(0), body: body(1), group: value(2), enabled: true };
       if (!/^[\w-]+$/.test(alias.name)) throw Error('Alias 名稱只能使用英文、數字、底線、連字號');
@@ -162,12 +168,14 @@ export class Engine {
       const index = this.aliases.findIndex(a => a.name.toLowerCase() === alias.name.toLowerCase());
       if (index < 0) this.aliases.push(alias); else this.aliases[index] = alias;
     } else if (['#TRIGGER', '#TRI', '#TR', '#ACTION', '#AC'].includes(name)) {
+      if (!args.length) { this.notice(this.triggers.map(t => `${t.pattern} [${this.active(t, true) ? '啟用' : '停用'}${t.group ? ' · ' + t.group : ''}] → ${t.body}`).join('\n') || '尚無觸發器'); return; }
       requireArgs(2);
       const trigger = { pattern: body(0), body: body(1), group: value(2), enabled: true, mode: 'line', caseSensitive: false };
       compilePattern(trigger.pattern, this.variables); splitCommands(trigger.body);
       const index = this.triggers.findIndex(t => t.pattern === trigger.pattern && t.group === trigger.group);
       if (index < 0) this.triggers.push(trigger); else this.triggers[index] = trigger;
     } else if (['#VAR', '#VARIABLE', '#VA'].includes(name)) {
+      if (!args.length) { this.notice(Object.entries(this.variables).map(([key, value]) => `${key} = ${value}`).join('\n') || '尚無變數'); return; }
       requireArgs(2);
       const key = value(0);
       if (!/^\w+$/.test(key)) throw Error('變數名稱只能使用英文、數字與底線');
