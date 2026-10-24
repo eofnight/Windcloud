@@ -1,6 +1,6 @@
 {
   "name": "windcloud-client",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "description": "風雲再起跨平台 Telnet 客戶端，提供 zMUD 風格 Trigger 與 Alias",
   "author": "Windcloud Client contributors",

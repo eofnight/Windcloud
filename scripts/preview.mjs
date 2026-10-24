@@ -22,7 +22,7 @@ window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listene
  if(name==='new-window')throw Error('請使用桌面版開啟多角色連線視窗。');
  if(name==='capture-history')return [...new Set(engine.captures.map(r=>r.target))].map(target=>shared.snapshot(target));
  if(name==='capture-clear'){emit('capture-shared',shared.clear(data));return true;}
- if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.7',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.7'}:null;
+ if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.8',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.8'}:null;
  if(name==='open-update')return;
  if(name==='resize')return;
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}

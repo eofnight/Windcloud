@@ -13,12 +13,12 @@ on:
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.7
+        default: v0.3.8
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.7' }}
+  group: release-${{ inputs.tag || 'v0.3.8' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -36,7 +36,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-      TAG: ${{ inputs.tag || 'v0.3.7' }}
+      TAG: ${{ inputs.tag || 'v0.3.8' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -98,12 +98,13 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
-          - 修正變數相應功能，可使用#add 變數 %1 %2等功能
-          - 支援 #ADD 累加擷取值，包含 0、多組擷取、負數與多個增量；變數面板即時更新。
-          - 支援 (%2) 等明確擷取編號，同時保留原有 (%d) 依序擷取的相容性。
-          - 匯入 .mud 的直接 #CAP 觸發會自動移到擷取清單，保留比對式、群組與目標分頁；其他執行指令保留為 Trigger。
-          - 匯入規則預設停用，確認後再啟用；舊版已匯入的設定請重新匯入原始 .mud 以套用轉換。
-          - 巢狀或有條件的 #CAP 不會擅自轉成無條件擷取；尚未支援的 zMUD 指令仍需人工檢查。
+          - 新增多角色連線視窗，每個角色獨立保存連線、Alias、觸發、變數、計時器與顯示偏好。
+          - 視窗數量不設固定上限；已實測五個視窗同時連線，實際可開啟數量受電腦資源影響。
+          - 支援開啟既有角色設定；已開啟的設定會切回原視窗，避免同一設定被重複寫入。
+          - 命令列直接輸入 #TR／#TRIGGER、#ALIAS、#TI／#TIMER 等命令，可列出目前角色的規則。
+          - 多視窗的同名擷取分頁共用紀錄，相同文字只保留一筆；各角色的規則執行互不影響。
+          - 擷取清除同步到所有同名分頁，右鍵關閉僅隱藏本視窗分頁；完全關閉 App 後清空本次共用紀錄。
+          - README 更新新增連線視窗操作說明，移除舊版入口轉換段落。
           - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime，尚未經 Apple 公證。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。
