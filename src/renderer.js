@@ -342,6 +342,7 @@ $('check-updates').onclick = async () => {
   } catch(e) { error(e); }
   finally { $('check-updates').disabled=false; }
 };
+window.mud.on('new-role', () => $('new-window').click());
 $('new-window').onclick = async () => {
   try {
     const available = await call('profiles');
@@ -350,7 +351,7 @@ $('new-window').onclick = async () => {
     for (const profile of available) {
       const option = document.createElement('option'); option.value = profile.id; option.textContent = profile.name + (profile.open ? '（已開啟）' : ''); $('window-profile').append(option);
     }
-    $('window-profile').value = ''; $('window-name').value = ''; updateWindowProfile();
+    $('window-mode').value = 'window'; $('window-profile').value = ''; $('window-name').value = ''; updateWindowProfile();
     $('new-window-error').textContent = ''; $('new-window-dialog').showModal(); $('window-name').focus();
   } catch(e) { error(e); }
 };
@@ -365,8 +366,8 @@ $('new-window-form').onsubmit = async event => {
   const submit = event.submitter ?? $('new-window-form').querySelector('[type=submit]'); submit.disabled = true;
   try {
     const id = $('window-profile').value;
-    await call('new-window', id ? { id } : { name: $('window-name').value.trim() });
-    $('new-window-dialog').close(); status('角色視窗已開啟，請在該視窗連線登入。');
+    await call('new-window', { mode: $('window-mode').value, ...(id ? { id } : { name: $('window-name').value.trim() }) });
+    $('new-window-dialog').close(); status('角色已開啟，請在該角色畫面連線登入。');
   } catch(e) { $('new-window-error').textContent = e.message; }
   finally { submit.disabled = false; }
 };

@@ -13,12 +13,12 @@ on:
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.8
+        default: v0.3.8.1
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.8' }}
+  group: release-${{ inputs.tag || 'v0.3.8.1' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -36,7 +36,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-      TAG: ${{ inputs.tag || 'v0.3.8' }}
+      TAG: ${{ inputs.tag || 'v0.3.8.1' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -44,12 +44,13 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[0-9]+$ ]]
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
           gh api "repos/$GH_REPO/actions/runs/$RUN_ID" > run.json
           jq -e --arg repo "$GH_REPO" '.status == "completed" and .conclusion == "success" and .event == "push" and .head_branch == "main" and .head_repository.full_name == $repo and .path == ".github/workflows/build.yml"' run.json
           source_sha=$(jq -r .head_sha run.json)
           package_version=$(gh api "repos/$GH_REPO/contents/package.json?ref=$source_sha" --jq .content | base64 --decode | jq -r .version)
-          test "$TAG" = "v$package_version"
+          public_version="${package_version/+/\.}"
+          test "$TAG" = "v$public_version"
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
       - name: Download all three verified platform artifacts
         shell: bash
@@ -98,13 +99,11 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
-          - 新增多角色連線視窗，每個角色獨立保存連線、Alias、觸發、變數、計時器與顯示偏好。
-          - 視窗數量不設固定上限；已實測五個視窗同時連線，實際可開啟數量受電腦資源影響。
-          - 支援開啟既有角色設定；已開啟的設定會切回原視窗，避免同一設定被重複寫入。
-          - 命令列直接輸入 #TR／#TRIGGER、#ALIAS、#TI／#TIMER 等命令，可列出目前角色的規則。
-          - 多視窗的同名擷取分頁共用紀錄，相同文字只保留一筆；各角色的規則執行互不影響。
-          - 擷取清除同步到所有同名分頁，右鍵關閉僅隱藏本視窗分頁；完全關閉 App 後清空本次共用紀錄。
-          - README 更新新增連線視窗操作說明，移除舊版入口轉換段落。
+          - 新增角色可選擇「開啟新視窗」或「目前視窗新增角色分頁」。
+          - 上方角色列可切換、關閉角色，＋ 可繼續新增；視窗與角色分頁均不設固定數量上限。
+          - 切換分頁時，背景角色的連線、觸發及計時器持續運作；關閉角色只中止該角色。
+          - 保留各角色獨立設定及同名擷取共用去重；已開啟角色會切回所在視窗與分頁。
+          - 更新檢查支援四段熱修版號 v0.3.8.1（內部 SemVer 套件版本 0.3.8+1）。
           - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime，尚未經 Apple 公證。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。

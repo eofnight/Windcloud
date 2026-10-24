@@ -6,21 +6,21 @@
 
 > **v0.3.5 新增計時器：** 最多三組，支援單次／循環與具名啟停。操作方式見 [指令與計時器使用說明](docs/commands.md)，詳細相容範圍見 [相容性文件](docs/compatibility.md)。
 
-## v0.3.8 更新內容
+## v0.3.8.1 更新內容
 
-新增多角色獨立連線視窗、命令列規則查詢，以及同名擷取分頁共用並去重的紀錄。每個角色的連線、規則、變數與計時器獨立保存；視窗數量不設固定上限，實際受電腦資源影響。操作與限制見 [使用說明](docs/commands.md)。
+新增角色時可選擇「開啟新視窗」或「目前視窗新增角色分頁」。每個角色的連線、規則、變數與計時器仍獨立保存，切換分頁不會中斷連線；同名擷取紀錄繼續共用並去重。操作見 [使用說明](docs/commands.md)。
 
 ## 下載與安裝
 
-本次版本：**[0.3.8（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.8)**。
+本次版本：**[0.3.8.1（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.8.1)**。
 
 | 平台 | 安裝檔 | 免安裝 ZIP |
 | --- | --- | --- |
-| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/Windcloud.Client.Setup.0.3.8.exe) | — |
-| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/Windcloud.Client-0.3.8-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/Windcloud.Client-0.3.8-arm64-mac.zip) |
-| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/Windcloud.Client-0.3.8.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/Windcloud.Client-0.3.8-mac.zip) |
+| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/Windcloud.Client.Setup.0.3.8.1.exe) | — |
+| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/Windcloud.Client-0.3.8.1-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/Windcloud.Client-0.3.8.1-arm64.zip) |
+| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/Windcloud.Client-0.3.8.1-x64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/Windcloud.Client-0.3.8.1-x64.zip) |
 
-Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.8/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
+Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.8.1/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
 
 ### macOS 首次開啟
 
@@ -34,7 +34,7 @@ Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式�
 
 ## 快速開始
 
-1. 按「連線」進入遊戲。需要同時登入其他角色時，按「新增連線視窗」，建立具名角色設定或選取既有設定，再於新視窗按「連線」登入。各視窗的連線、Alias、觸發、變數及計時器獨立保存；已開啟的角色設定會切換到原視窗。預設使用 WSS；其他主機、Telnet 與編碼可在「設定 → 連線設定」修改。
+1. 按「連線」進入遊戲。需要同時登入其他角色時，按「新增角色」，選擇「開啟新視窗」或「目前視窗新增角色分頁」，建立具名角色設定或選取既有設定，再於角色畫面按「連線」登入。各角色設定獨立保存；已開啟的角色會切換到所在視窗與分頁。預設使用 WSS；其他主機、Telnet 與編碼可在「設定 → 連線設定」修改。
 2. 在底部輸入帳號與遊戲指令；輸入密碼前勾選「密碼」。辨識到密碼提示時，也會自動遮蔽下一次輸入。
 3. 上方 Alias、觸發、變數、擷取、計時器可開啟規則面板；再次點選、按 ✕ 或 Escape 隱藏。
 4. 設定會自動儲存，也可匯出／匯入 JSON，另支援部分 zMUD 文字腳本與舊版 `.mud` 匯入。匯入後會斷線、暫停觸發器並停止計時器，請檢查規則後再使用。
@@ -63,6 +63,8 @@ App 啟動及每六小時檢查公開 GitHub Releases，也可在設定中手動
 
 需要 **Node.js 24** 與 **pnpm 11.25.0**。
 
+熱修版公開版號為 `0.3.8.1`；套件使用符合 SemVer 的 `0.3.8+1`，安裝檔名稱與更新檢查對應至公開版號。
+
 ```sh
 pnpm install --frozen-lockfile
 node node_modules/electron/install.js
@@ -81,6 +83,8 @@ pnpm dist                # 產生本機平台安裝檔
 預覽使用正式前端與字型，搭配模擬連線，不連遊戲、不讀取玩家設定。公開字圖測試資料在 `test/fixtures/windcloud-banner.txt`；字寬資料可用 `python3 scripts/generate-unicode-widths.py` 重建，字型授權見 `src/fonts/OFL.txt`。
 
 打包輸出在 `release/`。建置 CI 測試並產生 Windows x64、macOS arm64／x64 artifacts；main 上以 `Release:` 開頭的發布提交，會在三個平台建置成功後執行發布流程，一般提交及本機測試不會自動發布。公開發行前仍須評估 Windows 簽章與 Apple Developer ID／公證；未宣稱所有實機均已驗證。
+
+多角色整合驗證：以全新的 `WINDCLOUD_TEST_PROFILE` 目錄啟動 `pnpm start --remote-debugging-port=9223 --inspect=9230`，再執行 `node scripts/verify-role-tabs.mjs`。此測試會建立測試角色及本機連線，並在結束時關閉 App。
 
 核心模組：`src/engine.js` 處理腳本與規則，`src/timers.js` 管理計時排程，`src/connection.js` 與 `src/telnet.js` 處理連線，`src/main.cjs` 負責設定及 IPC，`src/renderer.js` 提供介面。測試在 `test/`。
 

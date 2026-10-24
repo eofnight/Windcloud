@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, WebContentsView, ipcMain, dialog, shell } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const iconv = require('iconv-lite');
 // Opt-in isolated profile for local verification; does not touch a running player's settings.
 if (process.env.WINDCLOUD_TEST_PROFILE) app.setPath('userData', path.resolve(process.env.WINDCLOUD_TEST_PROFILE));
 const { ProfileStore } = require('./profiles.cjs');
+const { createHost, attach, detach, activate } = require('./role-host.cjs');
 const sessions = new Map(), activeProfiles = new Map(), openingProfiles = new Map(), registeredChannels = new Set();
 let profiles, sharedCaptures;
 function registerChannel(name) {
@@ -12,7 +13,7 @@ function registerChannel(name) {
   registeredChannels.add(name);
   ipcMain.handle(name, async (event, ...args) => {
     const session = sessions.get(event.sender.id);
-    if (!session || event.sender !== session.window.webContents || event.senderFrame !== session.window.webContents.mainFrame) return { ok: false, error: '無效的呼叫來源' };
+    if (!session || event.sender !== session.contents || event.senderFrame !== session.contents.mainFrame) return { ok: false, error: '無效的呼叫來源' };
     if (session.closing) return { ok: false, error: '角色視窗正在關閉' };
     const fn = session.handlers.get(name);
     if (!fn) return { ok: false, error: '無效操作' };
@@ -20,22 +21,22 @@ function registerChannel(name) {
   });
 }
 function broadcastCapture(snapshot) {
-  for (const session of sessions.values()) if ((session.ownsTarget(snapshot.target) || (!snapshot.lines.length && session.knownTargets.has(snapshot.target))) && !session.window.isDestroyed()) { session.knownTargets.add(snapshot.target); session.window.webContents.send('capture-shared', snapshot); }
+  for (const session of sessions.values()) if ((session.ownsTarget(snapshot.target) || (!snapshot.lines.length && session.knownTargets.has(snapshot.target))) && !session.contents.isDestroyed()) { session.knownTargets.add(snapshot.target); session.contents.send('capture-shared', snapshot); }
 }
 function shareCapture({ target, line }) {
   const snapshot = sharedCaptures.append(target, line); if (snapshot) broadcastCapture(snapshot);
 }
-async function openProfile(profile) {
+async function openProfile(profile, host) {
   const existing = activeProfiles.get(profile.id);
-  if (existing) { if (existing.closing) throw Error('角色視窗正在關閉，請稍後再開啟'); existing.window.focus(); return existing; }
-  if (openingProfiles.has(profile.id)) return openingProfiles.get(profile.id);
-  const opening = createSession(profile); openingProfiles.set(profile.id, opening);
+  if (existing) { if (existing.closing) throw Error('角色視窗正在關閉，請稍後再開啟'); activate(existing.host, existing); return existing; }
+  if (openingProfiles.has(profile.id)) { const opened = await openingProfiles.get(profile.id); activate(opened.host, opened); return opened; }
+  const opening = createSession(profile, host); openingProfiles.set(profile.id, opening);
   try { return await opening; } finally { openingProfiles.delete(profile.id); }
 }
 
-async function createSession(profile) {
+async function createSession(profile, host) {
   const profileDirectory = profiles.directory(profile.id);
-  let win, socket, decoder, telnet, lines, promptTimer, saveTimer, updateTimer;
+  let win, contents, socket, decoder, telnet, lines, promptTimer, saveTimer, updateTimer;
   let importScript;
   let engine, Telnet, LineStream, GameConnection, executeInput, echoTriggeredCommand, normalizePreferences, migrateSettings, settings, passwordNext = false;
   let connecting = false, checkForUpdate, updateInfo = null, updateCheck = null, notifiedVersion = '';
@@ -50,7 +51,7 @@ async function createSession(profile) {
     }).finally(() => { updateCheck = null; });
     return updateCheck;
   }
-  const transmit = (kind, data) => { if (win && !win.isDestroyed()) win.webContents.send(kind, data); };
+  const transmit = (kind, data) => { if (contents && !contents.isDestroyed()) contents.send(kind, data); };
   const notice = text => transmit('notice', String(text));
   const connectionInfo = text => transmit('connection-info', String(text));
   const state = status => transmit('connection', status);
@@ -140,23 +141,26 @@ async function createSession(profile) {
     const loaded = JSON.parse(await fs.readFile(configPath(), 'utf8'));
     validateSettings(loaded); const migrated = migrateSettings({ ...defaults(), ...loaded }); engine.restore(migrated.engine); settings = migrated;
   } catch (e) { if (e.code !== 'ENOENT') dialog.showErrorBox('設定載入失敗', '保留原檔並使用預設設定：' + e.message); }
-  win = new BrowserWindow({ width: 1280, height: 850, minWidth: 640, minHeight: 480, backgroundColor: '#101519', title: '風雲再起 — ' + profile.name, webPreferences: {
-    preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true
+  host ??= await createHost();
+  win = host.window;
+  const view = new WebContentsView({ webPreferences: {
+    preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false
   } });
-  win.setMenuBarVisibility(false);
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.webContents.on('will-navigate', event => event.preventDefault());
-  win.on('page-title-updated', event => event.preventDefault());
-  const session = { window: win, profile, handlers: new Map(), knownTargets: new Set(), ownsTarget: target => engine.captures.some(r => r.target === target) };
-  sessions.set(win.webContents.id, session); activeProfiles.set(profile.id, session);
+  contents = view.webContents;
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('will-navigate', event => event.preventDefault());
+  const session = { window: win, host, view, contents, profile, handlers: new Map(), knownTargets: new Set(), ownsTarget: target => engine.captures.some(r => r.target === target) };
+  sessions.set(contents.id, session); activeProfiles.set(profile.id, session);
   const handle = (name, fn) => { session.handlers.set(name, fn); registerChannel(name); };
   handle('init', () => config());
   handle('profiles', () => profiles.list().map(p => ({ ...p, open: activeProfiles.has(p.id) || openingProfiles.has(p.id) })));
   handle('new-window', async (data = {}) => {
+    if (data.mode !== undefined && !['window', 'tab'].includes(data.mode)) throw Error('無效的開啟方式');
+    if (host.closing) throw Error('視窗正在關閉');
     let selected;
     if (typeof data.id === 'string') selected = profiles.get(data.id);
     else selected = await profiles.create(data.name);
-    const opened = await openProfile(selected); opened.window.focus();
+    const opened = await openProfile(selected, data.mode === 'tab' ? host : undefined); activate(opened.host, opened);
     return { ...selected };
   });
   handle('capture-history', () => [...new Set(engine.captures.map(r => r.target))].map(target => { session.knownTargets.add(target); return sharedCaptures.snapshot(target); }));
@@ -220,17 +224,30 @@ async function createSession(profile) {
     const result = await dialog.showSaveDialog(win, { defaultPath:'windcloud-session.txt', filters:[{name:'文字檔',extensions:['txt']}] });
     if (!result.canceled) await fs.writeFile(result.filePath,text);
   });
-  let closing = false;
-  win.on('close', event => {
-    event.preventDefault(); if (closing) return; closing = true; session.closing = true;
+  const webContentsId = contents.id;
+  let closing;
+  session.close = () => {
+    if (closing) return closing;
+    session.closing = true;
     closeConnection(); clearTimeout(saveTimer); clearInterval(updateTimer);
-    save().then(() => win.destroy()).catch(error => {
-      closing = false; session.closing = false; dialog.showErrorBox('設定儲存失敗', '視窗保留以避免遺失設定：' + error.message);
+    closing = save().then(() => {
+      sessions.delete(webContentsId); activeProfiles.delete(profile.id);
+      detach(host, session); contents.close(); return true;
+    }).catch(error => {
+      session.closing = false; closing = null;
+      dialog.showErrorBox('設定儲存失敗', '角色保留以避免遺失設定：' + error.message);
+      return false;
     });
-  });
-  const webContentsId = win.webContents.id;
-  win.once('closed', () => { sessions.delete(webContentsId); activeProfiles.delete(profile.id); });
-  await win.loadFile(path.join(__dirname, 'index.html'));
+    return closing;
+  };
+  try {
+    attach(host, session);
+    await contents.loadFile(path.join(__dirname, 'index.html'));
+  } catch (error) {
+    sessions.delete(webContentsId); activeProfiles.delete(profile.id);
+    if (host.tabs.includes(session)) detach(host, session);
+    contents.close(); throw error;
+  }
   checkUpdates().catch(() => {});
   updateTimer = setInterval(() => checkUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
   updateTimer.unref();

@@ -1,6 +1,6 @@
 {
   "name": "windcloud-client",
-  "version": "0.3.8",
+  "version": "0.3.8+1",
   "private": true,
   "description": "風雲再起跨平台 Telnet 客戶端，提供 zMUD 風格 Trigger 與 Alias",
   "author": "Windcloud Client contributors",
@@ -44,19 +44,24 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "timestamp": "none"
+      "timestamp": "none",
+      "artifactName": "${productName}-0.3.8.1-${arch}.${ext}",
+      "bundleShortVersion": "0.3.8"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "${productName}.Setup.0.3.8.1.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
     "afterSign": "scripts/verify-mac-signature.cjs",
-    "afterPack": "scripts/clean-mac-metadata.cjs"
+    "afterPack": "scripts/clean-mac-metadata.cjs",
+    "buildVersion": "0.3.8.1",
+    "buildNumber": "1"
   },
   "packageManager": "pnpm@11.25.0"
 }

@@ -1,16 +1,19 @@
 export const RELEASES_API = 'https://api.github.com/repos/eofnight/Windcloud/releases?per_page=20';
+export function publicVersion(value) {
+  return typeof value === 'string' ? value.replace(/^(v?\d+\.\d+\.\d+)\+(\d+)$/, '$1.$2') : value;
+}
 function versionParts(value) {
   if (typeof value !== 'string') return null;
-  const match = /^v?(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(value);
+  const match = /^v?(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?:\.(\d{1,9}))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(publicVersion(value));
   if (!match) return null;
-  const prerelease = match[4]?.split('.');
+  const prerelease = match[5]?.split('.');
   if (prerelease?.some(x => !x || (/^\d+$/.test(x) && x.length > 1 && x[0] === '0'))) return null;
-  return { numbers: match.slice(1,4).map(Number), prerelease };
+  return { numbers: [...match.slice(1,4).map(Number), Number(match[4] ?? 0)], prerelease };
 }
 export function compareVersions(left, right) {
   const a = versionParts(left), b = versionParts(right);
   if (!a || !b) return null;
-  for (let i=0;i<3;i++) if (a.numbers[i] !== b.numbers[i]) return Math.sign(a.numbers[i]-b.numbers[i]);
+  for (let i=0;i<4;i++) if (a.numbers[i] !== b.numbers[i]) return Math.sign(a.numbers[i]-b.numbers[i]);
   if (!a.prerelease || !b.prerelease) return a.prerelease ? -1 : b.prerelease ? 1 : 0;
   for (let i=0;i<Math.max(a.prerelease.length,b.prerelease.length);i++) {
     const x=a.prerelease[i], y=b.prerelease[i];

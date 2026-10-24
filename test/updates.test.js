@@ -21,3 +21,12 @@ test('network failures and rate limits reject cleanly for the caller to handle',
   await assert.rejects(checkForUpdate('0.3.3',{fetch:async()=>({ok:false,status:403})}),/HTTP 403/);
   await assert.rejects(checkForUpdate('0.3.3',{fetch:async()=>{throw Error('offline');}}),/offline/);
 });
+
+test('four-part hotfix tags and internal build versions order correctly',()=>{
+  assert.equal(compareVersions('v0.3.8.1','0.3.8'),1);
+  assert.equal(compareVersions('v0.3.8.1','0.3.8+1'),0);
+  assert.equal(compareVersions('v0.3.8.2','0.3.8+1'),1);
+  assert.equal(compareVersions('v0.3.9','0.3.8+1'),1);
+  assert.equal(selectUpdate([release('v0.3.8.1')],'0.3.8+1'),null);
+  assert.equal(selectUpdate([release('v0.3.8.1')],'0.3.8').version,'v0.3.8.1');
+});
