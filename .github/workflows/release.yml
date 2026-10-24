@@ -13,12 +13,12 @@ on:
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.5
+        default: v0.3.6
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.5' }}
+  group: release-${{ inputs.tag || 'v0.3.6' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -36,7 +36,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-      TAG: ${{ inputs.tag || 'v0.3.5' }}
+      TAG: ${{ inputs.tag || 'v0.3.6' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -98,11 +98,12 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
-          - 新增最多三組具名計時器，可選單次或循環，設定秒數與執行指令。
-          - 支援 #ti+ 名稱／#ti- 名稱，省略名稱時操作全部；隱藏面板不會停止計時。
-          - 計時器沿用觸發器腳本語法，可用 Alias、變數、條件與 #WA；共用既有單一等待佇列。
-          - 斷線或重開後計時器保持停止，需手動啟動；錯誤僅停止受影響的計時器。
-          - 指令教學獨立整理到 docs/commands.md，README 保留安裝與功能概覽。
+          - 計時器移至連線工具列的「擷取」旁，使用與觸發器一致的右側規則面板。
+          - 擷取分頁可按右鍵關閉並清除本次紀錄；保留擷取規則，收到新訊息時可重新建立分頁。
+          - 匯入設定除了 JSON，也接受部分 zMUD 文字腳本與已驗證的舊版 Big5 二進位 .mud。
+          - 匯入前顯示規則數量、同名取代數及相容性提示；確認後合併規則與變數，Alias／Trigger 預設停用。
+          - 尚未支援的 .mud 格式、旗標與快捷鍵不會猜測轉換；舊版重複指令及 #CAP 語意仍須人工檢查，不宣稱完整 zMUD 相容。
+          - 維持 JSON 匯入匯出、計時器斷線停止及密碼提示期間的回顯保護。
           - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime；首次開啟可能需在隱私權與安全性中授權。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。

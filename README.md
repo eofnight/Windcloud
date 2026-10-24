@@ -6,21 +6,21 @@
 
 > **v0.3.5 新增計時器：** 最多三組，支援單次／循環與具名啟停。操作方式見 [指令與計時器使用說明](docs/commands.md)，詳細相容範圍見 [相容性文件](docs/compatibility.md)。
 
-## 開發分支變更
+## v0.3.6 更新內容
 
-本分支調整計時器面板位置、新增擷取分頁右鍵關閉，並支援部分舊版 `.mud` 設定匯入；這些變更尚未包含在下方 v0.3.5 安裝檔。操作與限制見 [使用說明](docs/commands.md)。
+本版調整計時器面板位置、新增擷取分頁右鍵關閉，並支援部分舊版 `.mud` 設定匯入。操作與限制見 [使用說明](docs/commands.md)。
 
 ## 下載與安裝
 
-本次版本：**[0.3.5（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.5)**。
+本次版本：**[0.3.6（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.6)**。
 
 | 平台 | 安裝檔 | 免安裝 ZIP |
 | --- | --- | --- |
-| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client.Setup.0.3.5.exe) | — |
-| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-arm64-mac.zip) |
-| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-mac.zip) |
+| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/Windcloud.Client.Setup.0.3.6.exe) | — |
+| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/Windcloud.Client-0.3.6-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/Windcloud.Client-0.3.6-arm64-mac.zip) |
+| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/Windcloud.Client-0.3.6.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/Windcloud.Client-0.3.6-mac.zip) |
 
-Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
+Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.6/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
 
 ### macOS 首次開啟
 
