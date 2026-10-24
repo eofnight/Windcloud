@@ -161,12 +161,14 @@ function openEditor(index=-1) {
   const list=tab==='variables'?Object.entries(config.engine.variables).map(([name,body])=>({name,body})):config.engine[tab];
   const rule=list[index]||{};
   $('editor-title').textContent=(index<0?'新增 ':'編輯 ')+({aliases:'Alias',triggers:'Trigger',variables:'變數',captures:'擷取規則'})[tab];
-  $('key-label').firstChild.textContent=tab==='triggers'?'比對式':tab==='captures'?'觸發文字（包含即符合）':'名稱';
+  $('key-label').firstChild.textContent=tab==='triggers'?'比對式':tab==='captures'?'觸發文字／比對式':'名稱';
   $('body-label').firstChild.textContent=tab==='variables'?'值':tab==='captures'?'分頁名稱':'執行內容';
   $('rule-key').value=rule.pattern||rule.text||rule.name||''; $('rule-body').value=(tab==='captures'?rule.target:rule.body)||''; $('rule-body').rows=tab==='captures'?1:5; $('rule-group').value=rule.group||'';
+  $('capture-options').hidden = tab !== 'captures';
+  $('capture-match').value = rule.match ?? 'literal'; $('capture-case').checked = !!rule.caseSensitive;
   $('rule-mode').value=rule.mode||'line'; $('rule-case').checked=!!rule.caseSensitive;
   $('trigger-options').hidden=tab!=='triggers'; $('group-label').hidden=tab==='variables';
-  $('editor-hint').textContent=tab==='triggers'?'使用 zMUD 比對式，例如 ^You get (%d) coins，擷取結果用 %1。執行內容以 ; 串接；#wa 1000;pp 表示等一秒後執行 pp。':tab==='aliases'?'例如名稱 kk，執行內容 kill %1;kick %1。可用 #wa 1000;pp 等一秒後執行 pp。變數在執行時展開。':tab==='captures'?'逐字比對伺服器訊息，擷取符合的完整文字行；主終端也會保留原訊息。':'變數名稱使用英文、數字與底線。在腳本內用 @名稱 取用。';
+  $('editor-hint').textContent=tab==='triggers'?'使用 zMUD 比對式，例如 ^You get (%d) coins，擷取結果用 %1。執行內容以 ; 串接；#wa 1000;pp 表示等一秒後執行 pp。':tab==='aliases'?'例如名稱 kk，執行內容 kill %1;kick %1。可用 #wa 1000;pp 等一秒後執行 pp。變數在執行時展開。':tab==='captures'?'可選文字包含或觸發比對式（支援 %d 等）。匯入的 #CAP 使用比對式，擷取完整文字行；主終端保留原訊息。':'變數名稱使用英文、數字與底線。在腳本內用 @名稱 取用。';
   $('editor-error').textContent=''; $('editor').showModal(); $('rule-key').focus();
 }
 $('rule-form').onsubmit=async event=>{
@@ -175,8 +177,9 @@ $('rule-form').onsubmit=async event=>{
     const old=Object.keys(next.variables)[editIndex]; if(old) delete next.variables[old]; next.variables[key]=body;
   } else {
     const rule={ ...(tab==='captures'?{text:key,target:body.trim()}:{[tab==='triggers'?'pattern':'name']:key,body}), group:$('rule-group').value.trim(), enabled:editIndex<0?true:next[tab][editIndex].enabled };
+    if(tab==='captures' && $('capture-match').value === 'pattern') Object.assign(rule,{match:'pattern',caseSensitive:$('capture-case').checked});
     if(tab==='triggers') Object.assign(rule,{mode:$('rule-mode').value,caseSensitive:$('rule-case').checked});
-    const duplicate=next[tab].findIndex((r,i)=>i!==editIndex && (tab==='aliases'?r.name.toLowerCase()===key.toLowerCase():tab==='captures'?r.text===key&&r.target===rule.target:r.pattern===key&&r.group===rule.group));
+    const duplicate=next[tab].findIndex((r,i)=>i!==editIndex && (tab==='aliases'?r.name.toLowerCase()===key.toLowerCase():tab==='captures'?r.text===key&&r.target===rule.target&&r.group===rule.group&&(r.match??'literal')===(rule.match??'literal'):r.pattern===key&&r.group===rule.group));
     if(duplicate>=0) { $('editor-error').textContent='已有相同名稱或比對式的規則，請編輯現有規則。'; return; }
     if(editIndex<0) next[tab].push(rule); else next[tab][editIndex]=rule;
   }
@@ -252,6 +255,7 @@ window.mud.on('connection',value=>{
   if(value==='connecting'){output.reset();term.write('\x1b[0m');}
   status(names[value]);if(value==='connected'){$('welcome').hidden=true;$('command').focus();resize();}
 });
+window.mud.on('variable-state', variables => { if (config) { config.engine.variables = variables; if (tab === 'variables') render(); } });
 window.mud.on('connection-info', text => status(text));
 function closeMenu() { $('settings-menu').open = false; }
 $('show-connection-info').onchange = async () => {

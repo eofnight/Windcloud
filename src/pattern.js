@@ -5,6 +5,7 @@ export function compilePattern(pattern, variables = {}, caseSensitive = false) {
   if (pattern.length > 1024) throw Error('比對式最多 1024 字元');
   const source = expand(pattern, variables, [], { parameters: false });
   let regex = '', captures = 0, depth = 0, variableRun = false;
+  const slots = [];
   const any = '[^;{}\\r\\n]*?';
   for (let i = 0; i < source.length; i++) {
     const c = source[i];
@@ -19,7 +20,13 @@ export function compilePattern(pattern, variables = {}, caseSensitive = false) {
       if (variableRun) throw Error('請以固定文字分隔萬用字元');
       const types = { d: '[0-9]*', w: '[A-Za-z]*', a: '[A-Za-z0-9]*', s: '[ \\t]*', x: '[^\\s;{}]*?' };
       regex += types[source[++i]]; variableRun = true;
+    } else if (c === '(' && /^\(%[1-9]\)/.test(source.slice(i))) {
+      if (depth || ++captures > 9) throw Error('目前支援最多九組、不巢狀的擷取括號');
+      const slot = Number(source[i + 2]);
+      if (slots.includes(slot)) throw Error('擷取編號不可重複');
+      slots.push(slot); regex += '(' + any + ')'; i += 3; variableRun = true;
     } else if (c === '(') {
+      slots.push(null);
       if (depth || ++captures > 9) throw Error('目前支援最多九組、不巢狀的擷取括號');
       depth++; regex += '(';
     } else if (c === ')') {
@@ -43,5 +50,13 @@ export function compilePattern(pattern, variables = {}, caseSensitive = false) {
   }
   if (depth) throw Error('擷取括號未關閉');
   // $ alone is documented as matching a blank line.
-  return new RegExp(source === '$' ? '^$' : regex, caseSensitive ? 'u' : 'iu');
+  const used = new Set(slots.filter(slot => slot !== null));
+  const captureSlots = slots.map(slot => {
+    if (slot !== null) return slot;
+    let next = 1; while (used.has(next)) next++;
+    used.add(next); return next;
+  });
+  const expression = new RegExp(source === '$' ? '^$' : regex, caseSensitive ? 'u' : 'iu');
+  expression.captureSlots = captureSlots;
+  return expression;
 }

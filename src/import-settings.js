@@ -19,6 +19,35 @@ export function decodeScript(bytes) {
   return { text: text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'), encoding };
 }
 
+// Legacy #CAP {tab} captures the matching server line, rather than defining a new rule.
+function storeImportedTrigger(state, rule) {
+  state.captures ??= [];
+  const remaining = [], converted = [];
+  for (const command of splitCommands(rule.body)) {
+    const tokens = argumentsOf(command);
+    if (tokens[0]?.value.toUpperCase() === '#CAP' && tokens.length === 2 && tokens[1].value.trim()) {
+      converted.push({ text: rule.pattern, target: tokens[1].value, match: 'pattern',
+        caseSensitive: rule.caseSensitive, group: rule.group, enabled: false });
+    } else remaining.push(command);
+  }
+  const index = state.triggers.findIndex(t => t.pattern === rule.pattern && t.group === rule.group);
+  let replaced = index >= 0 ? 1 : 0, captures = 0;
+  if (!converted.length) {
+    if (index < 0) state.triggers.push(rule); else state.triggers[index] = rule;
+    return { captures: 0, triggers: 1, replaced, converted: 0 };
+  }
+  for (const capture of converted) {
+    const match = state.captures.findIndex(c => c.text === capture.text && c.target === capture.target && c.group === capture.group && c.match === 'pattern');
+    if (match >= 0) { state.captures[match] = capture; replaced++; }
+    else { state.captures.push(capture); captures++; }
+  }
+  if (remaining.length) {
+    const rest = { ...rule, body: remaining.join(';') };
+    if (index < 0) state.triggers.push(rest); else state.triggers[index] = rest;
+  } else if (index >= 0) state.triggers.splice(index, 1);
+  return { captures, triggers: remaining.length ? 1 : 0, replaced, converted: converted.length };
+}
+
 // Parse definitions as data. Never run an imported script, even in a temporary engine.
 export function importScript(bytes, current) {
   if (bytes.length > 2_000_000) throw Error('設定檔超過 2 MB');
@@ -28,7 +57,7 @@ export function importScript(bytes, current) {
   const { text, encoding } = decodeScript(bytes);
   const candidate = structuredClone(current);
   candidate.aliases ??= []; candidate.triggers ??= []; candidate.variables ??= {};
-  let aliases = 0, triggers = 0, variables = 0, replaced = 0;
+  let aliases = 0, triggers = 0, variables = 0, replaced = 0, captures = 0, converted = 0;
   const commands = splitCommands(text);
   if (!commands.length) throw Error('檔案沒有可匯入的規則。');
   for (const source of commands) {
@@ -48,43 +77,58 @@ export function importScript(bytes, current) {
       const key = alias ? 'name' : 'pattern';
       const rule = { [key]: args[0], body: args[1], group: args[2] || '', enabled: false,
         ...(trigger ? { mode: 'line', caseSensitive: false } : {}) };
-      const index = list.findIndex(r => alias ? r.name.toLowerCase() === rule.name.toLowerCase() : r.pattern === rule.pattern && r.group === rule.group);
-      if (index >= 0) { list[index] = rule; replaced++; } else list.push(rule);
-      if (alias) aliases++; else triggers++;
+      if (trigger) {
+        const result = storeImportedTrigger(candidate, rule);
+        captures += result.captures; triggers += result.triggers; replaced += result.replaced; converted += result.converted;
+      } else {
+        const index = list.findIndex(r => r.name.toLowerCase() === rule.name.toLowerCase());
+        if (index >= 0) { list[index] = rule; replaced++; } else list.push(rule);
+        aliases++;
+      }
     }
   }
-  if (!aliases && !triggers && !variables) throw Error('檔案沒有可匯入的規則。');
+  if (!aliases && !triggers && !variables && !converted) throw Error('檔案沒有可匯入的規則。');
   const validation = new Engine(); validation.restore(candidate);
-  return { engine: validation.snapshot(), summary: { aliases, triggers, variables, replaced, encoding } };
+  return { engine: validation.snapshot(), summary: { aliases, triggers, variables, captures, converted, replaced, encoding } };
 }
 
 export function importBinaryMud(bytes, current) {
   if (bytes.length > 2_000_000) throw Error('設定檔超過 2 MB');
   const parsed = readLegacyMud(bytes), candidate = structuredClone(current);
   candidate.aliases ??= []; candidate.triggers ??= []; candidate.variables ??= {};
-  const summary = { aliases: 0, triggers: 0, variables: 0, replaced: 0, encoding: parsed.encoding, warnings: [] };
+  const summary = { aliases: 0, triggers: 0, variables: 0, captures: 0, converted: 0, replaced: 0, encoding: parsed.encoding, warnings: [] };
   if (parsed.shortcuts) summary.warnings.push(`未匯入 ${parsed.shortcuts} 個舊版快捷鍵。`);
   if (parsed.trailingBytes) summary.warnings.push(`未匯入尾端 ${parsed.trailingBytes} bytes 的尚未解析的設定資料。`);
   for (const [index, definition] of parsed.definitions.entries()) {
     const next = structuredClone(candidate), { type, name, body, group } = definition;
     try {
+      let conversion = null;
       if (type === 'variable') {
         if (!/^\w+$/.test(name)) throw Error('變數名稱格式不支援');
         Object.defineProperty(next.variables, name, { value: body, enumerable: true, writable: true, configurable: true });
       } else {
         const list = type === 'alias' ? next.aliases : next.triggers;
         const rule = type === 'alias' ? { name, body, group, enabled: false } : { pattern: name, body, group, enabled: false, mode: 'line', caseSensitive: false };
-        const match = list.findIndex(r => type === 'alias' ? r.name.toLowerCase() === name.toLowerCase() : r.pattern === name && r.group === group);
-        if (match < 0) list.push(rule); else list[match] = rule;
+        if (type === 'trigger') conversion = storeImportedTrigger(next, rule);
+        else {
+          const match = list.findIndex(r => r.name.toLowerCase() === name.toLowerCase());
+          if (match < 0) list.push(rule); else list[match] = rule;
+        }
       }
       const validation = new Engine(); validation.restore(next);
-      if (type === 'variable' ? Object.hasOwn(candidate.variables, name) : (type === 'alias' ? candidate.aliases : candidate.triggers).some(r => type === 'alias' ? r.name.toLowerCase() === name.toLowerCase() : r.pattern === name && r.group === group)) summary.replaced++;
-      Object.assign(candidate, validation.snapshot()); summary[type === 'alias' ? 'aliases' : type === 'trigger' ? 'triggers' : 'variables']++;
+      if (conversion) {
+        summary.triggers += conversion.triggers; summary.captures += conversion.captures;
+        summary.converted += conversion.converted; summary.replaced += conversion.replaced;
+      } else {
+        if (type === 'variable' ? Object.hasOwn(candidate.variables, name) : candidate.aliases.some(r => r.name.toLowerCase() === name.toLowerCase())) summary.replaced++;
+        summary[type === 'alias' ? 'aliases' : 'variables']++;
+      }
+      Object.assign(candidate, validation.snapshot());
     } catch (error) { summary.warnings.push(`第 ${index + 1} 項未匯入：${error.message}`); }
   }
-  if (!summary.aliases && !summary.triggers && !summary.variables) throw Error('此 .mud 沒有能匯入的規則；未變更任何設定。');
+  if (!summary.aliases && !summary.triggers && !summary.variables && !summary.converted) throw Error('此 .mud 沒有能匯入的規則；未變更任何設定。');
   const reviewCommands = new Set();
-  for (const d of parsed.definitions) if (d.type !== 'variable') {
+  for (const d of [...candidate.aliases, ...candidate.triggers]) {
     for (const match of d.body.matchAll(/#(?:\d+|[A-Za-z]+)[+-]?/g)) {
       const name = match[0].toUpperCase();
       if (/^#\d/.test(name) || ['#TS', '#ALARM', '#GAG', '#COLOR', '#CAP'].includes(name)) reviewCommands.add(name);

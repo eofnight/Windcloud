@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const calls = new Set(['timer-control','init','connect','disconnect','execute','rules','pause','resize','preferences','export','import','log','check-updates','open-update']);
-const events = new Set(['timer-state','timer-echo','notice','connection','output','echo','capture','command-echo','connection-info','trigger-echo','update-available']);
+const events = new Set(['variable-state','timer-state','timer-echo','notice','connection','output','echo','capture','command-echo','connection-info','trigger-echo','update-available']);
 contextBridge.exposeInMainWorld('mud', {
   call: async (name, data) => {
     if (!calls.has(name)) throw Error('無效操作');

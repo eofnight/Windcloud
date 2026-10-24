@@ -79,7 +79,9 @@ export class Engine {
     const a = rules(aliases, false), t = rules(triggers, true);
     const c = captures.map(rule => {
       validateCapture(rule);
-      return { text: rule.text, target: rule.target, enabled: rule.enabled !== false, group: rule.group || '' };
+      if (rule.match === 'pattern') compilePattern(rule.text, state.variables ?? {}, !!rule.caseSensitive);
+      return { text: rule.text, target: rule.target, enabled: rule.enabled !== false, group: rule.group || '',
+        ...(rule.match === 'pattern' ? { match: 'pattern', caseSensitive: !!rule.caseSensitive } : {}) };
     });
     if (new Set(c.map(rule => rule.target)).size > 64) throw Error('最多可設定 64 個擷取分頁');
     const pendingName = this.pendingWait?.context?.timerName;
@@ -145,7 +147,7 @@ export class Engine {
       const rule = { text: body(0), target: value(1), enabled: true, group: '' };
       validateCapture(rule);
       const next = this.snapshot();
-      const index = next.captures.findIndex(c => c.text === rule.text && c.target === rule.target);
+      const index = next.captures.findIndex(c => c.text === rule.text && c.target === rule.target && c.match !== 'pattern');
       if (index < 0) next.captures.push(rule); else next.captures[index] = rule;
       this.restore(next, { preserveTimers: true });
     } else if (name === '#UNCAP') {
@@ -171,6 +173,25 @@ export class Engine {
       if (!/^\w+$/.test(key)) throw Error('變數名稱只能使用英文、數字與底線');
       const rawValue = value(1);
       this.variables[key] = !args[1].quoted && rawValue.startsWith('[') && rawValue.endsWith(']') ? String(evaluate(rawValue.slice(1,-1), this.variables, params)) : rawValue;
+    } else if (name === '#ADD') {
+      requireArgs(2);
+      const key = value(0);
+      if (!/^\w+$/.test(key)) throw Error('變數名稱只能使用英文、數字與底線');
+      const numeric = raw => {
+        const text = String(raw).trim();
+        if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text) || !Number.isFinite(Number(text))) throw Error('#ADD 需要有效數字');
+        const number = Number(text);
+        if (Number.isInteger(number) && !Number.isSafeInteger(number)) throw Error('#ADD 數值超過安全範圍');
+        return number;
+      };
+      let sum = Object.hasOwn(this.variables, key) ? numeric(this.variables[key]) : 0;
+      const increments = args.slice(1).map((_, i) => numeric(value(i + 1)));
+      for (const increment of increments) {
+        sum += increment;
+        if (!Number.isFinite(sum) || (Number.isInteger(sum) && !Number.isSafeInteger(sum))) throw Error('#ADD 運算結果超過安全數值範圍');
+      }
+      this.variables[key] = String(sum);
+      this.changed();
     } else if (/^#(?:TR|TRI|TRIGGER)[+-]$/.test(name)) {
       requireArgs(1);
       if (args.length !== 1 || !value(0).trim()) throw Error('格式：#TR+ {群組} 或 #TR- {群組}');
@@ -209,22 +230,26 @@ export class Engine {
     if (mode === 'line') {
       const targets = new Set();
       for (const rule of this.captures) {
-        if (this.active(rule) && line.includes(rule.text)) targets.add(rule.target);
+        if (this.active(rule) && (rule.match === 'pattern' ? compilePattern(rule.text, this.variables, rule.caseSensitive).test(line.slice(0, 16384)) : line.includes(rule.text))) targets.add(rule.target);
       }
       for (const target of targets) this.capture({ target, line });
     }
     for (const trigger of [...this.triggers]) {
       if (!this.active(trigger, true) || (trigger.mode || 'line') !== mode) continue;
-      const result = compilePattern(trigger.pattern, this.variables, trigger.caseSensitive).exec(line.slice(0, 16384));
+      const expression = compilePattern(trigger.pattern, this.variables, trigger.caseSensitive);
+      const result = expression.exec(line.slice(0, 16384));
       if (result) {
         const context = { budget, trigger: true, group: trigger.group };
-        this.advance(this.run(trigger.body, result.slice(1), true, 0, context), false, context);
+        const params = [];
+        expression.captureSlots.forEach((slot, index) => { params[slot - 1] = result[index + 1]; });
+        this.advance(this.run(trigger.body, params, true, 0, context), false, context);
       }
     }
   }
 }
 
 function validateCapture(rule) {
+  if (rule?.match !== undefined && !['literal', 'pattern'].includes(rule.match)) throw Error('無效的擷取比對模式');
   if (!rule || typeof rule.text !== 'string' || !rule.text.trim() || rule.text.length > 1024 || /[\r\n\0]/.test(rule.text)) throw Error('擷取文字必須為 1–1024 字元的單行文字');
   if (typeof rule.target !== 'string' || !rule.target.trim() || rule.target.length > 40 || /[\x00-\x1f\x7f]/.test(rule.target)) throw Error('分頁名稱必須為 1–40 字元，且不能包含控制字元');
   if (rule.group !== undefined && typeof rule.group !== 'string') throw Error('群組格式錯誤');

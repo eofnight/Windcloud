@@ -11,12 +11,12 @@ import {normalizePreferences} from '/src/preferences.js';
 const listeners=new Map();
 const emit=(name,data)=>(listeners.get(name)||[]).forEach(fn=>fn(data));
 let connected=false;
-const engine=new Engine({canStartTimers:()=>connected,timerChanged:()=>emit('timer-state',engine.timers.state()),send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data),echo:(text,name)=>emit(name?'timer-echo':'trigger-echo',name?{text,name}:text)});
+const engine=new Engine({changed:()=>emit('variable-state',{...engine.variables}),canStartTimers:()=>connected,timerChanged:()=>emit('timer-state',engine.timers.state()),send:text=>emit('output','預覽指令：'+text+'\\r\\n'),notice:text=>emit('notice',text),capture:data=>emit('capture',data),echo:(text,name)=>emit(name?'timer-echo':'trigger-echo',name?{text,name}:text)});
 const config=()=>({version:2,host:'windcloud.muds.me',port:443,encoding:'utf8',transport:'websocket',preferences,engine:engine.snapshot(),paused:engine.paused,timerState:engine.timers.state()});
 let preferences=normalizePreferences();
 window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listeners.set(name,list);return()=>listeners.set(name,list.filter(x=>x!==fn));},async call(name,data){
  if(name==='init')return config();
- if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.6',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.6'}:null;
+ if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.7',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.7'}:null;
  if(name==='open-update')return;
  if(name==='resize')return;
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}

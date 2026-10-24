@@ -13,12 +13,12 @@ on:
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.6
+        default: v0.3.7
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.6' }}
+  group: release-${{ inputs.tag || 'v0.3.7' }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -36,7 +36,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-      TAG: ${{ inputs.tag || 'v0.3.6' }}
+      TAG: ${{ inputs.tag || 'v0.3.7' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -98,13 +98,13 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
-          - 計時器移至連線工具列的「擷取」旁，使用與觸發器一致的右側規則面板。
-          - 擷取分頁可按右鍵關閉並清除本次紀錄；保留擷取規則，收到新訊息時可重新建立分頁。
-          - 匯入設定除了 JSON，也接受部分 zMUD 文字腳本與已驗證的舊版 Big5 二進位 .mud。
-          - 匯入前顯示規則數量、同名取代數及相容性提示；確認後合併規則與變數，Alias／Trigger 預設停用。
-          - 尚未支援的 .mud 格式、旗標與快捷鍵不會猜測轉換；舊版重複指令及 #CAP 語意仍須人工檢查，不宣稱完整 zMUD 相容。
-          - 維持 JSON 匯入匯出、計時器斷線停止及密碼提示期間的回顯保護。
-          - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime；首次開啟可能需在隱私權與安全性中授權。
+          - 修正變數相應功能，可使用#add 變數 %1 %2等功能
+          - 支援 #ADD 累加擷取值，包含 0、多組擷取、負數與多個增量；變數面板即時更新。
+          - 支援 (%2) 等明確擷取編號，同時保留原有 (%d) 依序擷取的相容性。
+          - 匯入 .mud 的直接 #CAP 觸發會自動移到擷取清單，保留比對式、群組與目標分頁；其他執行指令保留為 Trigger。
+          - 匯入規則預設停用，確認後再啟用；舊版已匯入的設定請重新匯入原始 .mud 以套用轉換。
+          - 巢狀或有條件的 #CAP 不會擅自轉成無條件擷取；尚未支援的 zMUD 指令仍需人工檢查。
+          - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime，尚未經 Apple 公證。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。
           NOTES

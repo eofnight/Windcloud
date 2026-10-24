@@ -97,7 +97,8 @@ app.whenReady().then(async () => {
   ({ GameConnection } = await import('./connection.js'));
   ({ normalizePreferences, migrateSettings } = await import('./preferences.js'));
   engine = new EngineClass({
-    send: sendCommand, notice, capture: data => transmit('capture', data), changed: scheduleSave,
+    send: sendCommand, notice, capture: data => transmit('capture', data),
+    changed: () => { scheduleSave(); transmit('variable-state', { ...engine.variables }); },
     canStartTimers: () => !!socket && !socket.destroyed && !connecting,
     timerChanged: () => transmit('timer-state', engine.timers.state()),
     echo: (text, timerName) => echoTriggeredCommand({ text, passwordPrompt: passwordNext,
@@ -161,8 +162,8 @@ app.whenReady().then(async () => {
     if (path.extname(file).toLowerCase() !== '.json') {
       const imported = importScript(bytes, engine.snapshot()), summary = imported.summary;
       const confirmation = await dialog.showMessageBox(win, { type: 'question', title: '匯入 zMUD 設定',
-        message: `將匯入 ${summary.aliases} 個 Alias、${summary.triggers} 個 Trigger、${summary.variables} 個變數。`,
-        detail: `編碼：${summary.encoding}。同名項目將取代 ${summary.replaced} 項。其他設定與連線位址保留。\n匯入不會執行腳本；Alias／Trigger 預設停用，觸發器暫停並斷線。請檢查腳本相容性再啟用。\n${(summary.warnings ?? []).join('\n')}`,
+        message: `將匯入 ${summary.aliases} 個 Alias、${summary.triggers} 個 Trigger、${summary.variables} 個變數、${summary.captures ?? 0} 個新擷取規則（轉換 ${summary.converted ?? 0} 個 #CAP 動作）。`,
+        detail: `編碼：${summary.encoding}。同名項目將取代 ${summary.replaced} 項。其他設定與連線位址保留。\n匯入不會執行腳本；Alias／Trigger／擷取規則預設停用，觸發器暫停並斷線。請檢查腳本相容性再啟用。\n${(summary.warnings ?? []).join('\n')}`,
         buttons: ['取消', '匯入'], defaultId: 0, cancelId: 0 });
       if (confirmation.response !== 1) return null;
       engine.restore(imported.engine); closeConnection(); engine.paused = true; scheduleSave(); return config();
