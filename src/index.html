@@ -12,7 +12,6 @@
     <div class="connection-state"><i id="indicator"></i><span id="connection-state">尚未連線</span></div>
     <details id="settings-menu"><summary>設定</summary><div class="menu-content">
       <label class="check"><input id="show-connection-info" type="checkbox"> 顯示狀態列</label>
-      <label class="check"><input id="show-timers" type="checkbox"> 顯示計時器</label>
       <button id="check-updates">檢查更新</button><button id="open-appearance">色彩與顯示</button><button id="open-connection">連線設定</button>
     </div></details>
   </header>
@@ -25,13 +24,9 @@
       <button data-panel="triggers" aria-expanded="false" aria-controls="rules-panel">觸發</button>
       <button data-panel="variables" aria-expanded="false" aria-controls="rules-panel">變數</button>
       <button data-panel="captures" aria-expanded="false" aria-controls="rules-panel">擷取</button>
+      <button data-panel="timers" aria-expanded="false" aria-controls="rules-panel">計時器</button>
     </nav>
     <div class="spacer"></div><button id="pause">暫停觸發器</button><button id="save-log">匯出紀錄</button><button id="clear">清除畫面</button>
-  </section>
-  <section id="timers-panel" aria-label="計時器" hidden>
-    <div class="timer-heading"><strong>計時器（最多 3 個）</strong><button id="add-timer">＋ 新增計時器</button></div>
-    <div id="timers-list"></div>
-    <p class="hint">隱藏不會停止計時。斷線後停止，重新連線需手動啟動。</p>
   </section>
   <main>
     <section class="console">
@@ -46,11 +41,12 @@
     </section>
     <aside id="rules-panel" aria-label="規則管理" hidden>
       <div class="panel-heading"><span>規則管理</span><button id="close-panel" aria-label="隱藏規則面板">✕</button></div>
-      <nav class="tabs"><button data-tab="aliases" class="active">Alias <span id="alias-count">0</span></button><button data-tab="triggers">觸發 <span id="trigger-count">0</span></button><button data-tab="variables">變數</button><button data-tab="captures">擷取 <span id="capture-count">0</span></button></nav>
+      <nav class="tabs"><button data-tab="aliases" class="active">Alias <span id="alias-count">0</span></button><button data-tab="triggers">觸發 <span id="trigger-count">0</span></button><button data-tab="variables">變數</button><button data-tab="captures">擷取 <span id="capture-count">0</span></button><button data-tab="timers">計時器 <span id="timer-count">0</span></button></nav>
       <div id="rules"></div><button id="add-rule" class="add">＋ 新增 Alias</button>
       <div class="aside-footer"><button id="import">匯入設定</button><button id="export">匯出設定</button></div>
     </aside>
   </main>
+  <div id="capture-menu" role="menu" aria-label="擷取分頁操作" hidden><button id="close-capture-tab" role="menuitem">關閉分頁</button></div>
   <footer id="status-bar" hidden><span id="status" role="status">就緒。</span></footer>
   <dialog id="timer-editor"><form id="timer-form">
     <div class="dialog-heading"><h2 id="timer-editor-title">新增計時器</h2><button id="cancel-timer" type="button" aria-label="關閉計時器編輯">✕</button></div>
@@ -60,7 +56,7 @@
     <label>執行指令<textarea id="timer-body" rows="4" maxlength="32000" required></textarea></label>
     <p class="hint">與觸發器使用相同指令語法，例如 dr;#wa 1000;score。儲存後停止，需重新啟動。</p>
     <p id="timer-error" role="alert"></p>
-    <div class="dialog-actions"><button type="submit">儲存計時器</button></div>
+    <div class="dialog-actions"><button class="primary" type="submit">儲存計時器</button></div>
   </form></dialog>
   <dialog id="editor"><form id="rule-form"><div class="dialog-heading"><h2 id="editor-title">新增規則</h2><button type="button" id="cancel" aria-label="關閉">✕</button></div><label id="key-label">名稱<input id="rule-key" required spellcheck="false"></label><label id="body-label">執行內容<textarea id="rule-body" rows="5" required spellcheck="false"></textarea></label><label id="group-label">群組（選填）<input id="rule-group" spellcheck="false"></label><div id="trigger-options"><label>觸發時機<select id="rule-mode"><option value="line">收到完整文字行</option><option value="prompt">提示文字（無換行）</option></select></label><label class="check"><input id="rule-case" type="checkbox"> 區分英文大小寫</label></div><p id="editor-hint"></p><p id="editor-error" role="alert"></p><div class="dialog-actions"><button class="primary" type="submit">儲存規則</button></div></form></dialog>
   <dialog id="appearance"><form id="appearance-form">

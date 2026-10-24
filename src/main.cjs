@@ -5,6 +5,7 @@ const iconv = require('iconv-lite');
 // Opt-in isolated profile for local verification; does not touch a running player's settings.
 if (process.env.WINDCLOUD_TEST_PROFILE) app.setPath('userData', path.resolve(process.env.WINDCLOUD_TEST_PROFILE));
 let win, socket, decoder, telnet, lines, promptTimer, saveTimer, updateTimer;
+let importScript;
 let engine, Telnet, LineStream, GameConnection, executeInput, echoTriggeredCommand, normalizePreferences, migrateSettings, settings, passwordNext = false;
 let connecting = false, checkForUpdate, updateInfo = null, updateCheck = null, notifiedVersion = '';
 async function checkUpdates() {
@@ -89,6 +90,7 @@ function connect() {
 }
 app.whenReady().then(async () => {
   const { Engine: EngineClass } = await import('./engine.js');
+  ({ importScript } = await import('./import-settings.js'));
   ({ Telnet, LineStream } = await import('./telnet.js'));
   ({ executeInput, echoTriggeredCommand } = await import('./input.js'));
   ({ checkForUpdate } = await import('./updates.js'));
@@ -150,11 +152,22 @@ app.whenReady().then(async () => {
     return !result.canceled;
   });
   handle('import', async () => {
-    const result = await dialog.showOpenDialog(win, { properties:['openFile'], filters:[{name:'JSON',extensions:['json']}] });
+    const result = await dialog.showOpenDialog(win, { properties:['openFile'], filters:[{name:'設定檔／zMUD',extensions:['json','txt','mud']},{name:'JSON',extensions:['json']},{name:'zMUD 設定／文字腳本',extensions:['txt','mud']}] });
     if (result.canceled) return null;
     const file = result.filePaths[0];
     if ((await fs.stat(file)).size > 2_000_000) throw Error('設定檔超過 2 MB');
-    const data = JSON.parse(await fs.readFile(file,'utf8')); validateSettings(data);
+    const bytes = await fs.readFile(file);
+    if (bytes.length > 2_000_000) throw Error('設定檔超過 2 MB');
+    if (path.extname(file).toLowerCase() !== '.json') {
+      const imported = importScript(bytes, engine.snapshot()), summary = imported.summary;
+      const confirmation = await dialog.showMessageBox(win, { type: 'question', title: '匯入 zMUD 設定',
+        message: `將匯入 ${summary.aliases} 個 Alias、${summary.triggers} 個 Trigger、${summary.variables} 個變數。`,
+        detail: `編碼：${summary.encoding}。同名項目將取代 ${summary.replaced} 項。其他設定與連線位址保留。\n匯入不會執行腳本；Alias／Trigger 預設停用，觸發器暫停並斷線。請檢查腳本相容性再啟用。\n${(summary.warnings ?? []).join('\n')}`,
+        buttons: ['取消', '匯入'], defaultId: 0, cancelId: 0 });
+      if (confirmation.response !== 1) return null;
+      engine.restore(imported.engine); closeConnection(); engine.paused = true; scheduleSave(); return config();
+    }
+    const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')); validateSettings(data);
     const migrated = migrateSettings({ ...defaults(), ...data }); engine.restore(migrated.engine); closeConnection(); settings = migrated;
     engine.paused = true; scheduleSave(); return config();
   });

@@ -13,6 +13,7 @@ let preferences = normalizePreferences(), colorDraft, panelOpen = false, resizeF
 const measure = document.createElement('canvas').getContext('2d');
 let activeView = null;
 const captureViews = new Map();
+let captureSequence = 0, captureMenuTarget = null;
 let config, tab = 'aliases', editIndex = -1, history = [], historyIndex = 0, log = '', secretFromServer = false;
 function status(text) { $('status').textContent = text; }
 function error(e) { status(e.message); term.write(output.local('[錯誤] ' + e.message, preferences.colors.error)); }
@@ -43,8 +44,6 @@ function applyPreferences(value) {
   term.options.drawBoldTextInBrightColors = preferences.boldAsBright;
   document.documentElement.style.setProperty('--terminal-bg', preferences.colors.background);
   document.documentElement.style.setProperty('--terminal-fg', preferences.colors.foreground);
-  $('timers-panel').hidden = !preferences.showTimers;
-  $('show-timers').checked = preferences.showTimers;
   $('status-bar').hidden = !preferences.showConnectionInfo;
   $('show-connection-info').checked = preferences.showConnectionInfo;
   for (const record of captureViews.values()) record.pane.style.fontSize = preferences.fontSize + 'px';
@@ -71,10 +70,11 @@ function ensureCapture(target) {
   button.type = 'button'; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', 'false');
   const pane = document.createElement('pre');
   pane.className = 'capture-pane'; pane.style.fontSize = preferences.fontSize + 'px'; pane.setAttribute('role', 'tabpanel'); pane.setAttribute('aria-label', target); pane.hidden = true;
-  const id = 'capture-' + captureViews.size;
+  const id = 'capture-' + captureSequence++;
   pane.id = id; button.setAttribute('aria-controls', id); button.id = id + '-tab'; pane.setAttribute('aria-labelledby', button.id);
   const record = { button, pane, log: new CaptureLog() };
   captureViews.set(target, record); button.onclick = () => selectView(target);
+  button.oncontextmenu = event => openCaptureMenu(event, target);
   $('output-tabs').append(button); $('capture-views').append(pane); updateCaptureLabel(target);
   return record;
 }
@@ -96,9 +96,32 @@ function selectView(target) {
   if (target === null) requestAnimationFrame(resize);
 }
 $('game-tab').onclick = () => selectView(null);
+function closeCaptureMenu() { $('capture-menu').hidden = true; captureMenuTarget = null; }
+function openCaptureMenu(event, target) {
+  event.preventDefault(); captureMenuTarget = target;
+  const menu = $('capture-menu'); menu.hidden = false;
+  const rect = event.currentTarget.getBoundingClientRect();
+  menu.style.left = Math.max(0, Math.min(event.clientX || rect.left, innerWidth - menu.offsetWidth)) + 'px';
+  menu.style.top = Math.max(0, Math.min(event.clientY || rect.bottom, innerHeight - menu.offsetHeight)) + 'px';
+  $('close-capture-tab').focus();
+}
+$('close-capture-tab').onclick = () => {
+  const target = captureMenuTarget, record = captureViews.get(target);
+  closeCaptureMenu(); if (!record) return;
+  if (activeView === target) selectView(null);
+  record.button.remove(); record.pane.remove(); captureViews.delete(target);
+  (captureViews.get(activeView)?.button ?? $('game-tab')).focus(); status('已關閉擷取分頁並清除本次紀錄；擷取規則保留。');
+};
+document.addEventListener('pointerdown', event => { if (!event.target.closest('#capture-menu')) closeCaptureMenu(); });
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('capture-menu').hidden) { const target = captureMenuTarget; closeCaptureMenu(); captureViews.get(target)?.button.focus(); event.stopImmediatePropagation(); }
+}, true);
+window.addEventListener('resize', closeCaptureMenu);
 function render() {
-  renderTimers();
-  for (const rule of config.engine.captures) ensureCapture(rule.target);
+  $('timer-count').textContent = config.engine.timers?.length ?? 0;
+  $('pause').textContent=config.paused?'恢復觸發器':'暫停觸發器'; document.body.classList.toggle('paused',config.paused);
+  $('add-rule').disabled = tab === 'timers' && (config.engine.timers?.length ?? 0) >= 3;
+  if (tab === 'timers') { $('add-rule').textContent = '＋ 新增計時器'; renderTimers(); return; }
   $('capture-count').textContent = config.engine.captures.length;
   $('alias-count').textContent = config.engine.aliases.length; $('trigger-count').textContent = config.engine.triggers.length;
   const labels = {aliases:'Alias',triggers:'Trigger',variables:'變數',captures:'擷取規則'};
@@ -159,7 +182,7 @@ $('rule-form').onsubmit=async event=>{
   }
   try { config=await call('rules',next); render(); $('editor').close(); status('規則已儲存。'); } catch(e) { $('editor-error').textContent=e.message; }
 };
-$('cancel').onclick=()=>$('editor').close(); $('add-rule').onclick=()=>openEditor();
+$('cancel').onclick=()=>$('editor').close(); $('add-rule').onclick=()=>tab === 'timers' ? openTimerEditor() : openEditor();
 for(const button of document.querySelectorAll('[data-tab]')) button.onclick=()=>{
   setPanel(true, button.dataset.tab);
 };
@@ -296,26 +319,34 @@ call('init').then(loadConfig).catch(error);
 
 let timerEditIndex = -1;
 function renderTimers() {
+  if (!config || tab !== 'timers') return;
   const rules = config.engine.timers ?? [];
-  $('add-timer').disabled = rules.length >= 3;
-  $('timers-list').replaceChildren();
-  if (!rules.length) $('timers-list').textContent = '尚無計時器，請新增名稱、時間與執行指令。';
+  $('rules').replaceChildren();
+  if (!rules.length) {
+    const empty = document.createElement('div'); empty.className = 'empty';
+    const heading = document.createElement('strong'); heading.textContent = '建立你的第一個計時器';
+    const hint = document.createElement('span'); hint.textContent = '最多三組，設定秒數與指令，可選單次或循環。隱藏面板不會停止計時，斷線後需手動重新啟動。';
+    empty.append(heading, hint); $('rules').append(empty);
+  }
   rules.forEach((rule, index) => {
-    const row = document.createElement('div'); row.className = 'timer-row';
-    const title = document.createElement('strong'); title.textContent = rule.name;
-    const countdown = document.createElement('span'); countdown.dataset.timerName = rule.name;
-    const mode = document.createElement('span'); mode.textContent = `${rule.seconds} 秒 · ${rule.mode === 'once' ? '單次' : '循環'}`;
-    const body = document.createElement('code'); body.textContent = rule.body;
-    const toggle = document.createElement('button');
     const running = config.timerState?.some(s => s.name === rule.name && s.running);
-    toggle.textContent = running ? '停止' : '啟動';
-    toggle.onclick = async () => {
-      try { config = await call('timer-control', { enabled: !running, name: rule.name }); renderTimers(); } catch(e) { error(e); }
+    const row = document.createElement('div'); row.className = 'rule' + (running ? '' : ' off');
+    const top = document.createElement('div'); top.className = 'rule-top';
+    const toggle = document.createElement('input'); toggle.type = 'checkbox'; toggle.checked = !!running;
+    toggle.setAttribute('aria-label', '啟動計時器 ' + rule.name);
+    toggle.onchange = async () => {
+      try { config = await call('timer-control', { enabled: toggle.checked, name: rule.name }); renderTimers(); }
+      catch(e) { error(e); renderTimers(); }
     };
+    const title = document.createElement('strong'); title.textContent = rule.name; top.append(toggle, title);
+    const body = document.createElement('div'); body.className = 'rule-body'; body.textContent = rule.body;
+    const mode = document.createElement('div'); mode.className = 'timer-details'; mode.textContent = `${rule.seconds} 秒 · ${rule.mode === 'once' ? '單次' : '循環'}`;
+    const actions = document.createElement('div'); actions.className = 'rule-actions';
+    const countdown = document.createElement('span'); countdown.dataset.timerName = rule.name;
     const edit = document.createElement('button'); edit.textContent = '編輯'; edit.onclick = () => openTimerEditor(index);
     const remove = document.createElement('button'); remove.textContent = '刪除';
     remove.onclick = async () => { const next = structuredClone(config.engine); next.timers.splice(index, 1); await saveRules(next); };
-    row.append(title, mode, countdown, body, toggle, edit, remove); $('timers-list').append(row);
+    actions.append(countdown, edit, remove); row.append(top, body, mode, actions); $('rules').append(row);
   });
   updateTimerCountdowns();
 }
@@ -338,7 +369,6 @@ function openTimerEditor(index = -1) {
   $('timer-body').value = rule?.body ?? '';
   $('timer-error').textContent = ''; $('timer-editor').showModal(); $('timer-name').focus();
 }
-$('add-timer').onclick = () => openTimerEditor();
 $('cancel-timer').onclick = () => $('timer-editor').close();
 $('timer-form').onsubmit = async event => {
   event.preventDefault();
@@ -349,8 +379,4 @@ $('timer-form').onsubmit = async event => {
     if (timerEditIndex >= 0) config = await call('timer-control', { enabled: false, name: rule.name });
     render(); $('timer-editor').close(); status('計時器已儲存，請手動啟動。'); }
   catch(e) { $('timer-error').textContent = e.message; }
-};
-$('show-timers').onchange = async () => {
-  try { config = await call('preferences', {...preferences, showTimers: $('show-timers').checked}); applyPreferences(config.preferences); }
-  catch(e) { applyPreferences(config.preferences); error(e); }
 };
