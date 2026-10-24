@@ -1,28 +1,33 @@
 name: Publish packaged release
 on:
-  push:
+  workflow_run:
+    workflows: [Test and build desktop clients]
+    types: [completed]
     branches: [main]
-    paths: [.github/workflows/release.yml]
   workflow_dispatch:
     inputs:
       run_id:
         description: Successful main build run ID
         required: true
-        default: '39786449615'
         type: string
       tag:
         description: Version tag matching package.json in the build
         required: true
-        default: v0.3.4
+        default: v0.3.5
         type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.tag || 'v0.3.4' }}
+  group: release-${{ inputs.tag || 'v0.3.5' }}
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release:')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       startsWith(github.event.workflow_run.head_commit.message, 'Release:'))
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -30,8 +35,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RUN_ID: ${{ inputs.run_id || '39786449615' }}
-      TAG: ${{ inputs.tag || 'v0.3.4' }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+      TAG: ${{ inputs.tag || 'v0.3.5' }}
     steps:
       - name: Verify source build and version
         id: source
@@ -93,19 +98,16 @@ jobs:
           - Windows x64：下載 .exe 安裝檔。
           - macOS Apple Silicon：下載檔名含 arm64 的 .dmg 或 .zip。
           - macOS Intel：下載檔名不含 arm64 的 .dmg 或 .zip。
-          - 修正 macOS App 與 Electron 輔助程式的簽章；採用免費 ad-hoc 本機簽章並保留 Hardened Runtime。
-          - 加入封裝前及 ZIP 解壓後的嚴格簽章驗證；舊版無效簽章會直接讓建置失敗。
-          - macOS 首次開啟可能仍需「系統設定 → 隱私權與安全性 → 強制打開」，只授權此 App。
-          - 觸發器實際送出的指令會逐條回顯，包含 Alias 展開與延遲指令；密碼提示期間不回顯。
-          - 支援 #TRI；#TR+／#TRI+／#TRIGGER+ 與對應 - 寫法可控制觸發群組。
-          - Esc 清空指令列，Page Up／Page Down 捲動遊戲與擷取分頁的歷史訊息。
-          - 啟動後及每六小時檢查新版本，亦可從設定手動檢查；更新需自行下載安裝。
-          - 支援 #WA／#WAIT 毫秒等待；例如 #wa 1000;pp，等待一秒後執行 pp，可用於 Trigger 與 Alias 的連續指令。
-          - 等待期間仍可手動輸入；斷線、暫停觸發器或重新載入規則時會取消等待。
-          - 支援 WSS、zMUD 風格 Alias／Trigger、#CAP 擷取分頁、自訂 ANSI 色彩及中文字圖對齊；換行後恢復預設色。
+          - 新增最多三組具名計時器，可選單次或循環，設定秒數與執行指令。
+          - 支援 #ti+ 名稱／#ti- 名稱，省略名稱時操作全部；隱藏面板不會停止計時。
+          - 計時器沿用觸發器腳本語法，可用 Alias、變數、條件與 #WA；共用既有單一等待佇列。
+          - 斷線或重開後計時器保持停止，需手動啟動；錯誤僅停止受影響的計時器。
+          - 指令教學獨立整理到 docs/commands.md，README 保留安裝與功能概覽。
+          - macOS 延續 ad-hoc 本機簽章與 Hardened Runtime；首次開啟可能需在隱私權與安全性中授權。
 
           三個平台均已通過自動測試及打包；SHA256SUMS.txt 提供檔案核對碼。此版採用 ad-hoc 本機簽章，未使用 Apple Developer ID，亦未經 Apple 公證。
           NOTES
+          printf '\n指令教學：https://github.com/%s/blob/%s/docs/commands.md\n' "$GH_REPO" "$SOURCE_SHA" >> notes.md
           printf '\n來源建置：https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$RUN_ID" >> notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             # A retry can repair checksums without replacing any installer.

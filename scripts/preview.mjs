@@ -16,7 +16,7 @@ const config=()=>({version:2,host:'windcloud.muds.me',port:443,encoding:'utf8',t
 let preferences=normalizePreferences();
 window.mud={on(name,fn){const list=listeners.get(name)||[];list.push(fn);listeners.set(name,list);return()=>listeners.set(name,list.filter(x=>x!==fn));},async call(name,data){
  if(name==='init')return config();
- if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.4',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.4'}:null;
+ if(name==='check-updates')return new URLSearchParams(location.search).has('update')?{version:'v0.3.5',url:'https://github.com/eofnight/Windcloud/releases/tag/v0.3.5'}:null;
  if(name==='open-update')return;
  if(name==='resize')return;
  if(name==='preferences'){preferences=normalizePreferences(data);return config();}

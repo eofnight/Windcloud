@@ -4,23 +4,23 @@
 
 本專案為獨立開發的預覽版，不是 Zugg Software 的官方產品，不包含 zMUD 程式碼、圖示或遊戲伺服器。
 
-> **分支待發布功能：計時器。** 計時器功能尚未包含於已發布的 0.3.4 安裝檔；發布前仍需最終確認。其他功能的詳細相容範圍見 [相容性文件](docs/compatibility.md)。
+> **v0.3.5 新增計時器：** 最多三組，支援單次／循環與具名啟停。操作方式見 [指令與計時器使用說明](docs/commands.md)，詳細相容範圍見 [相容性文件](docs/compatibility.md)。
 
 ## 下載與安裝
 
-目前已發布版本：**[0.3.4（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.4)**。
+本次版本：**[0.3.5（預覽版）](https://github.com/eofnight/Windcloud/releases/tag/v0.3.5)**。
 
 | 平台 | 安裝檔 | 免安裝 ZIP |
 | --- | --- | --- |
-| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/Windcloud.Client.Setup.0.3.4.exe) | — |
-| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/Windcloud.Client-0.3.4-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/Windcloud.Client-0.3.4-arm64-mac.zip) |
-| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/Windcloud.Client-0.3.4.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/Windcloud.Client-0.3.4-mac.zip) |
+| Windows x64 | [下載 .exe](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client.Setup.0.3.5.exe) | — |
+| macOS Apple Silicon | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-arm64.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-arm64-mac.zip) |
+| macOS Intel | [下載 .dmg](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5.dmg) | [下載 .zip](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/Windcloud.Client-0.3.5-mac.zip) |
 
-Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.4/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
+Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式」，或解壓縮 `.zip`。安裝版不需要 Node.js 或 pnpm。檔案核對碼見 [SHA256SUMS.txt](https://github.com/eofnight/Windcloud/releases/download/v0.3.5/SHA256SUMS.txt)，其他版本見 [Releases](https://github.com/eofnight/Windcloud/releases)。
 
 ### macOS 首次開啟
 
-0.3.4 已修正本機簽章，App 與解壓後的 ZIP 通過嚴格簽章驗證。採用 ad-hoc 本機簽章及 Hardened Runtime，未經 Apple 公證；0.3.3 及更早版本請更新。
+0.3.4 起已修正本機簽章，App 與解壓後的 ZIP 通過嚴格簽章驗證。採用 ad-hoc 本機簽章及 Hardened Runtime，未經 Apple 公證；0.3.3 及更早版本請更新。
 
 1. 下載適合處理器的版本，安裝到「應用程式」。
 2. 如遭未公證提示阻擋，嘗試開啟後到「系統設定 → 隱私權與安全性」，若出現「強制打開」，確認來源後授權此 App。
@@ -43,7 +43,7 @@ Windows 執行 `.exe`；macOS 開啟 `.dmg`，將 App 複製到「應用程式�
 
 Alias、Trigger、變數、等待、計時器與擷取分頁的設定方式及指令範例，請見 [指令與計時器使用說明](docs/commands.md)。支援語法與限制另見 [相容性文件](docs/compatibility.md)。
 
-計時器最多三組，支援單次或循環模式；可在設定選單顯示面板。此功能尚未包含於已發布的 0.3.4 安裝檔。
+計時器最多三組，支援單次或循環模式；可在設定選單顯示面板。此功能自 0.3.5 提供。
 
 ## 顯示、更新與資料
 
@@ -78,7 +78,7 @@ pnpm dist                # 產生本機平台安裝檔
 
 預覽使用正式前端與字型，搭配模擬連線，不連遊戲、不讀取玩家設定。公開字圖測試資料在 `test/fixtures/windcloud-banner.txt`；字寬資料可用 `python3 scripts/generate-unicode-widths.py` 重建，字型授權見 `src/fonts/OFL.txt`。
 
-打包輸出在 `release/`。建置 CI 測試並產生 Windows x64、macOS arm64／x64 artifacts；發布流程另行處理，不因本機測試而自動發布。公開發行前仍須評估 Windows 簽章與 Apple Developer ID／公證；未宣稱所有實機均已驗證。
+打包輸出在 `release/`。建置 CI 測試並產生 Windows x64、macOS arm64／x64 artifacts；main 上以 `Release:` 開頭的發布提交，會在三個平台建置成功後執行發布流程，一般提交及本機測試不會自動發布。公開發行前仍須評估 Windows 簽章與 Apple Developer ID／公證；未宣稱所有實機均已驗證。
 
 核心模組：`src/engine.js` 處理腳本與規則，`src/timers.js` 管理計時排程，`src/connection.js` 與 `src/telnet.js` 處理連線，`src/main.cjs` 負責設定及 IPC，`src/renderer.js` 提供介面。測試在 `test/`。
 
